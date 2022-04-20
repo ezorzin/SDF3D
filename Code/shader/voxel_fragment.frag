@@ -12,27 +12,32 @@ in  vec2 quad;                                                                  
 out vec4 fragment_color;                                                        // Fragment color.
  
 // Constants
-#define PI 3.1415925359f
-#define TWO_PI 6.2831852f
-#define MAX_STEPS 100
-#define MAX_DIST 100.0f
-#define SURFACE_DIST 0.01f
+#define PI 3.1415925359f                                                        // PI.
+#define TWO_PI 6.2831852f                                                       // 2*PI.
+#define MAX_STEPS 100                                                           // Maximum ray marching steps.
+#define MAX_DIST 100.0f                                                         // Maximum distance.
+#define SURFACE_DIST 0.01f                                                      // Surface distance.
  
-float GetDist(vec3 p)
+float SDF_sphere(vec3 p)
 {
-  float x = 0.0f;
-  float y = 1.0f;
-  float z = 6.0f;
-  float r = 1.0f;
-  vec3  s = vec3(x, y, z);                                                      // Sphere. xyz is position w is radius
-  float sphereDist = length(p - s) - r;
-  float planeDist = p.y;
-  float d = min(sphereDist, planeDist);
+  float x = 0.0f;                                                               // Sphere x-coordinate.
+  float y = 1.0f;                                                               // Sphere y-coordinate.
+  float z = 6.0f;                                                               // Sphere z-coordinate.
+  float r = 1.0f;                                                               // Sphere radius.
+  vec3  s = vec3(x, y, z);                                                      // Sphere position.
+  float SDF = length(p - s) - r;                                                // Signed distance field.
  
-  return d;
+  return SDF;                                                                   // Returning signed distance field...
+}
+
+float SDF_plane(vec3 p)
+{
+  float SDF = p.y;                                                              // Signed distance field.
+ 
+  return SDF;                                                                   // Returning signed distance field...
 }
  
-float RayMarch(vec3 ro, vec3 rd) 
+float RayMarching(vec3 ro, vec3 rd) 
 {
   float dO = 0.0f;                                                              // Distance origin
     
@@ -50,7 +55,10 @@ float RayMarch(vec3 ro, vec3 rd)
  
 vec3 GetNormal(vec3 p)
 { 
-  float d = GetDist(p); // Distance
+  float d_plane = SDF_plane(p);
+  float d_sphere = SDF_sphere(p);
+  float d = min(d_plane, d_sphere);
+
   vec2 e = vec2(0.01f, 0.0f); // Epsilon
   vec3 n = d - vec3(GetDist(p-e.xyy), GetDist(p-e.yxy), GetDist(p-e.yyx));
    
@@ -72,9 +80,9 @@ float GetLight(vec3 p)
 
 void main()
 {
-  vec3 ro = vec3(0,1,0); // Ray Origin/ Camera
-  vec3 rd = normalize(vec3(quad.x*AR,quad.y,1)); // Ray Direction
-  float d = RayMarch(ro,rd); // Distance
+  vec3 ro = vec3(0,1,0);                                                        // Ray Origin/ Camera
+  vec3 rd = normalize(vec3(quad.x*AR,quad.y,1));                                // Ray Direction
+  float d = RayMarching(ro,rd);                                                 // Distance field
   vec3 p = ro + rd * d;
   float dif = GetLight(p); // Diffuse lighting
   d*= .2;
