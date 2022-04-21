@@ -46,24 +46,35 @@ float SDF_plane(vec3 p)
 //////////////////////////////////////////////////////////////////////////////////
 void main()
 {
+  // Ray marching variables:
   int   i;                                                                      // Step index.
   float d_marching;                                                             // Marching distance.
   vec3  ray_marching;                                                           // Marching ray.
   float sdf = INF;                                                              // Signed distance field.
-  float sdf_L = INF;                                                            // Signed distance field (left limit).
-  float sdf_R = INF;                                                            // Signed distance field (right limit).
   vec3  ray_origin;                                                             // Ray origin (vantage point).
   vec3  ray_direction;                                                          // Ray direction.
+  
+  // Light variables:
   vec3  light_position;                                                         // Light position.
+  vec3  light_color;                                                            // Light color.
   vec3  light_direction;                                                        // Light direction.
   float light_intensity;                                                        // Light intensity.
-  float light_ambient;                                                          // Ambient light intenstity.
-  float light_diffuse;                                                          // Diffuse light intensity.
-  float light_specular;                                                         // Specular light intensity.
-  vec3  material_ambient;
-  vec3  material_diffuse;
-  vec3  material_specular;
-  float material_shininess;
+  vec3  light_ambient;                                                          // Light ambient color.
+  vec3  light_diffuse;                                                          // Light diffuse color.
+  vec3  light_specular;                                                         // Light specular color.
+  float light_diffuse_intensity;                                                // Light diffuse intensity.          
+  float light_specular_intensity;                                               // Light specualr intensity.
+  vec3  light_reflection_direction;                                             // Light reflection direction.
+  
+  // Material variables:
+  vec3  material_ambient;                                                       // Material ambient color.
+  vec3  material_diffuse;                                                       // Material diffuse color.
+  vec3  material_specular;                                                      // Material specualr color.
+  float material_shininess;                                                     // Material shininess.
+
+  // Normal variables:
+  float sdf_L = INF;                                                            // Signed distance field (left limit).
+  float sdf_R = INF;                                                            // Signed distance field (right limit).
   vec3  dx = vec3(EPSILON, 0.0f, 0.0f);                                         // x-direction increment.
   vec3  dy = vec3(0.0f, EPSILON, 0.0f);                                         // y-direction increment.
   vec3  dz = vec3(0.0f, 0.0f, EPSILON);                                         // z-direction increment.
@@ -72,23 +83,28 @@ void main()
   float nz = INF;                                                               // Scene SDF's gradient z-component.
   vec3  n;                                                                      // Scene's normal vector.
 
-  // INITIALIZING SCENE:
-  light_position = vec3(5.0f, 5.0f, 0.0f);                                      // Setting light position...
+  // INITIALIZING RAY MARCHING:
   ray_origin = vec3(0.0f, 1.0f, 0.0f);                                          // Setting ray origin (vantage point)...
   ray_direction = normalize(vec3(quad.x*AR, quad.y, 1.0f));                     // Computing ray direction...
   d_marching = 0.0f;                                                            // Resetting marching distance...
   i = 0;                                                                        // Resetting step index... 
 
-  material_ambient   = vec3(1.0f, 0.5f, 0.31f);
-  material_diffuse   = vec3(1.0f, 0.5f, 0.31f);
-  material_specular  = vec3(0.5f, 0.5f, 0.5f);
-  material_shininess = 32.0f;
+  // INITIALIZING LIGHT:
+  light_position = vec3(5.0f, 5.0f, 0.0f);                                      // Setting light position...
+  light_color = vec3(0.7f, 0.7f, 0.7f);                                         // Setting light color...
+  light_ambient = vec3(0.1f, 0.1f, 0.1f);                                       // Setting light ambient color...
 
-  // RAY MARCHING:
+  // INITIALIZING MATERIAL:
+  material_ambient   = vec3(0.0f, 0.2f, 0.8f);                                  // Setting material ambient color...
+  material_diffuse   = vec3(0.0f, 0.2f, 0.8f);                                  // Setting material diffuse color...
+  material_specular  = vec3(0.5f, 0.5f, 0.5f);                                  // Setting material specular color...
+  material_shininess = 32.0f;                                                   // Setting material shininess...
+
+  // COMPUTING RAY MARCHING:
   while (
-          (d_marching < MAX_DISTANCE) && 
-          (sdf > EPSILON) &&
-          (i < MAX_STEPS)
+          (d_marching < MAX_DISTANCE) &&                                        // Checking matching distance...
+          (sdf > EPSILON) &&                                                    // Checking signed distance field...
+          (i < MAX_STEPS)                                                       // Checking step index...
         )
   {
     ray_marching = ray_origin + d_marching*ray_direction;                       // Computing marching ray...      
@@ -96,7 +112,7 @@ void main()
     sdf = min(sdf, SDF_plane(ray_marching));                                    // Computing signed distance field...
     sdf = min(sdf, SDF_sphere(ray_marching));                                   // Computing signed distance field...
     d_marching += sdf;                                                          // Updating marching distance...
-    i++;
+    i++;                                                                        // Updating step index...
   }
 
   ray_marching = ray_origin + d_marching*ray_direction;                         // Computing final marching ray...
@@ -135,17 +151,14 @@ void main()
   n = normalize(vec3(nx, ny, nz));                                              // Computing normal vector...
   
   // COMPUTING LIGHTNING:
-  light_ambient = 0.01f;
   light_direction = normalize(light_position - ray_marching);                   // Computing light direction...
-  light_diffuse = clamp(dot(n, light_direction), 0.0f, 1.0f);                         // Computing diffuse light intensity...
-  
-  vec3 reflectDir = reflect(-light_direction, n);
-  float shininess = 50;
-  float specularStrength = 0.2;
-  float spec = pow(max(dot(ray_origin - ray_direction, reflectDir), 0.0), shininess);
-  light_specular = specularStrength * spec; 
+  light_diffuse_intensity = clamp(dot(n, light_direction), 0.0f, 1.0f);         // Computing light diffusion intensity...
+  light_diffuse = light_color*(light_diffuse_intensity*material_diffuse);       // Computing diffuse light color...
+  light_reflection_direction = reflect(-light_direction, n);                    // Computing light reflection direction...
+  //light_specular_intensity = pow(max(dot(ray_origin - ray_marching, light_reflection_direction), 0.0), material_shininess);
+  //light_specular_intensity = pow(max(dot(-ray_direction, light_reflection_direction), 0.0), material_shininess);
+  light_specular_intensity = pow(max(dot(normalize(ray_origin - ray_marching), light_reflection_direction), 0.0), material_shininess);
+  light_specular = light_color*(light_specular_intensity*material_specular);    // Computing specular light color...
 
-  light_intensity = light_ambient + light_diffuse + light_specular;
-
-  fragment_color = vec4(light_intensity, light_intensity, light_intensity, 1.0f);                                      // Setting output color...
+  fragment_color = vec4(light_ambient + light_diffuse + light_specular, 1.0f);  // Setting output color...
 }
