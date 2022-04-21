@@ -59,7 +59,7 @@ void main()
   float li;                                                                     // Light intensity.
   float ambient;                                                                // Ambient light intenstity.
   float diffuse;                                                                // Diffuse light intensity.
-  float specular;                                                               // Specular light intensity.
+  //float specular;                                                               // Specular light intensity.
   vec3  dx = vec3(EPSILON, 0.0f, 0.0f);                                         // x-direction increment.
   vec3  dy = vec3(0.0f, EPSILON, 0.0f);                                         // y-direction increment.
   vec3  dz = vec3(0.0f, 0.0f, EPSILON);                                         // z-direction increment.
@@ -122,10 +122,18 @@ void main()
   n = normalize(vec3(nx, ny, nz));                                              // Computing normal vector...
   
   // COMPUTING LIGHTNING:
-  ambient = 0.1f;
+  ambient = 0.01f;
   ld = normalize(lp - ray);                                                     // Computing light direction...
   diffuse = clamp(dot(n, ld), 0.0f, 1.0f);                                      // Computing diffuse light intensity...
-  li = ambient + diffuse;
+  
+
+  vec3 reflectDir = reflect(-ld, n);
+  float shininess = 50;
+  float specularStrength = 0.2;
+  float spec = pow(max(dot(ro - rd, reflectDir), 0.0), shininess);
+  float specular = specularStrength * spec; 
+
+  li = ambient + diffuse + specular;
 
   fragment_color = vec4(li, li, li, 1.0f);                                      // Setting output color...
 }
