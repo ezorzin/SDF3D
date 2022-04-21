@@ -11,13 +11,16 @@ in  vec2 quad;                                                                  
 
 out vec4 fragment_color;                                                        // Fragment color.
  
-// Constants
+// CONSTANTS:
 #define PI 3.1415925359f                                                        // PI.
 #define TWO_PI 6.2831852f                                                       // 2*PI.
 #define MAX_STEPS 100                                                           // Maximum ray marching steps.
-#define MAX_DIST 100.0f                                                         // Maximum distance.
-#define SURFACE_DIST 0.01f                                                      // Surface distance.
+#define MAX_DISTANCE 100.0f                                                     // Maximum marching distance.
+#define EPSILON 0.01f                                                           // Minimum surface distance (ray marching epsilon).
  
+//////////////////////////////////////////////////////////////////////////////////
+/////////////// OBJECT'S SIGNED DISTANCE FIELDS IMPLICIT FUNCTIONS ///////////////
+//////////////////////////////////////////////////////////////////////////////////
 float SDF_sphere(vec3 p)
 {
   float x = 0.0f;                                                               // Sphere x-coordinate.
@@ -36,58 +39,61 @@ float SDF_plane(vec3 p)
  
   return SDF;                                                                   // Returning signed distance field...
 }
- 
-float RayMarching(vec3 ro, vec3 rd) 
-{
-  float dO = 0.0f;                                                              // Distance origin
-    
-  for(int i=0;i<MAX_STEPS;i++)
-  {
-    vec3 p = ro + rd * dO;
-    float ds = GetDist(p);                                                      // ds is Distance Scene
-    dO += ds;
-    
-    if(dO > MAX_DIST || ds < SURFACE_DIST) break;
-  }
-  
-  return dO;
-}
- 
-vec3 GetNormal(vec3 p)
-{ 
-  float d_plane = SDF_plane(p);
-  float d_sphere = SDF_sphere(p);
-  float d = min(d_plane, d_sphere);
 
-  vec2 e = vec2(0.01f, 0.0f); // Epsilon
-  vec3 n = d - vec3(GetDist(p-e.xyy), GetDist(p-e.yxy), GetDist(p-e.yyx));
-   
-  return normalize(n);
-}
-
-float GetLight(vec3 p)
-{ 
-  // Light (directional diffuse)
-  vec3 lightPos = vec3(5.0f, 5.0f, 0.0f); // Light Position
-  vec3 l = normalize(lightPos-p); // Light Vector
-  vec3 n = GetNormal(p); // Normal Vector
-   
-  float dif = dot(n,l); // Diffuse light
-  dif = clamp(dif,0.,1.); // Clamp so it doesnt go below 0
- 
-  return dif;
-}
-
+//////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////// SCENE RENDERING ////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 void main()
 {
-  vec3 ro = vec3(0,1,0);                                                        // Ray Origin/ Camera
-  vec3 rd = normalize(vec3(quad.x*AR,quad.y,1));                                // Ray Direction
-  float d = RayMarching(ro,rd);                                                 // Distance field
-  vec3 p = ro + rd * d;
-  float dif = GetLight(p); // Diffuse lighting
-  d*= .2;
-  vec3 color = vec3(dif);
+  int   i;                                                                      // Step index.
+  float d;                                                                      // Marching distance.
+  vec3  ray;                                                                    // Marching ray.
+  float sdf;                                                                    // Signed distance field.
+  vec3  ro;                                                                     // Ray origin (vantage point).
+  vec3  rd;                                                                     // Ray direction.
+  vec3  lp;                                                                     // Light position.
+  vec3  ld;                                                                     // Light direction.
+  float li;                                                                     // Light intensity.
+  vec3  dx = vec3(EPSILON, 0.0f, 0.0f);                                         // x-direction increment.
+  vec3  dy = vec3(0.0f, EPSILON, 0.0f);                                         // y-direction increment.
+  vec3  dz = vec3(0.0f, 0.0f, EPSILON);                                         // z-direction increment.
+  float nx = MAX_DISTANCE/EPSILON;                                              // Scene SDF's gradient x-component.
+  float ny = MAX_DISTANCE/EPSILON;                                              // Scene SDF's gradient y-component.
+  float nz = MAX_DISTANCE/EPSILON;                                              // Scene SDF's gradient z-component.
+  vec3  n;                                                                      // Scene's normal vector.
+
+  // INITIALIZING SCENE:
+  lp = vec3(5.0f, 5.0f, 0.0f);                                                  // Setting light position...
+  ro = vec3(0.0f, 1.0f, 0.0f);                                                  // Setting ray origin (vantage point)...
+  rd = normalize(vec3(quad.x*AR, quad.y, 1.0f));                                // Computing ray direction...
+  d = 0.0f;                                                                     // Resetting marching distance...
+  i = 0;                                                                        // Resetting step index... 
+
+  // RAY MARCHING:
+  while (d < MAX_DISTANCE && sdf > EPSILON && i < MAX_STEPS)
+  {
+    ray = ro + d*rd;                                                            // Computing marching ray...      
+    sdf = MAX_DISTANCE;                                                         // Setting SDF to MAX_DISTANCE...
+    sdf = min(sdf, SDF_plane(ray));                                             // Computing signed distance field...
+    sdf = min(sdf, SDF_sphere(ray));                                            // Computing signed distance field...
+    d  += sdf;                                                                  // Updating marching distance...
+    i++;
+  }
+
+  ray = ro + d*rd;                                                              // Computing final marching ray...
+
+  // COMPUTING NORMAL VECTOR:
+  nx = min(nx, SDF_plane(ray + dx) - SDF_plane(ray - dx));                      // Computing signed distance field...
+  nx = min(nx, SDF_sphere(ray + dx) - SDF_sphere(ray - dx));                    // Computing signed distance field...
+  ny = min(ny, SDF_plane(ray + dy) - SDF_plane(ray - dy));                      // Computing signed distance field...
+  ny = min(ny, SDF_sphere(ray + dy) - SDF_sphere(ray - dy));                    // Computing signed distance field...
+  nz = min(nz, SDF_plane(ray + dz) - SDF_plane(ray - dz));                      // Computing signed distance field...
+  nz = min(nz, SDF_sphere(ray + dz) - SDF_sphere(ray - dz));                    // Computing signed distance field...
   
-  // Set the output color
-  fragment_color = vec4(color, 1.0);
+  n = normalize(vec3(nx, ny, nz));                                              // Computing normal vector...
+  
+  // COMPUTING DIFFUSE LIGHTNING:
+  ld = normalize(lp - ray);                                                     // Computing light direction...
+  li = clamp(dot(n, ld), 0.0f, 1.0f);                                           // Computing light intensity...
+  fragment_color = vec4(li, li, li, 1.0f);                                      // Setting output color...
 }
