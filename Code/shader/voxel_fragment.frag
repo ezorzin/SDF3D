@@ -51,25 +51,28 @@ void main()
   float d_marching;                                                             // Marching distance.
   vec3  ray_marching;                                                           // Marching ray.
   float sdf = INF;                                                              // Signed distance field.
-  vec3  ray_origin;                                                             // Ray origin (vantage point).
-  vec3  ray_direction;                                                          // Ray direction.
+  vec3  camera_position;                                                        // Camera position (ray origin).
+  vec3  view_direction;                                                         // View direction
+  vec3  canvas_position;                                                        // Canvas position (ray intersection on quad).
   
   // Light variables:
   vec3  light_position;                                                         // Light position.
-  vec3  light_color;                                                            // Light color.
   vec3  light_direction;                                                        // Light direction.
-  float light_intensity;                                                        // Light intensity.
-  vec3  light_ambient;                                                          // Light ambient color.
-  vec3  light_diffuse;                                                          // Light diffuse color.
-  vec3  light_specular;                                                         // Light specular color.
+  vec3  light_color;                                                            // Light color.
+  
+  float light_ambient_intensity;                                                // Light ambient intensity.
   float light_diffuse_intensity;                                                // Light diffuse intensity.          
-  float light_specular_intensity;                                               // Light specualr intensity.
-  vec3  light_reflection_direction;                                             // Light reflection direction.
+  float light_specular_intensity;                                               // Light specular intensity.
+  vec3  light_ambient_color;                                                    // Light ambient color.
+  vec3  light_diffuse_color;                                                    // Light diffuse color.
+  vec3  light_specular_color;                                                   // Light specular color.
+  
+  vec3  light_specular_direction;                                               // Light specular direction.
   
   // Material variables:
   vec3  material_ambient;                                                       // Material ambient color.
   vec3  material_diffuse;                                                       // Material diffuse color.
-  vec3  material_specular;                                                      // Material specualr color.
+  vec3  material_specular;                                                      // Material specular color.
   float material_shininess;                                                     // Material shininess.
 
   // Normal variables:
@@ -84,8 +87,8 @@ void main()
   vec3  n;                                                                      // Scene's normal vector.
 
   // INITIALIZING RAY MARCHING:
-  ray_origin = vec3(0.0f, 1.0f, 0.0f);                                          // Setting ray origin (vantage point)...
-  ray_direction = normalize(vec3(quad.x*AR, quad.y, 1.0f));                     // Computing ray direction...
+  camera_position = vec3(0.0f, 1.0f, 0.0f);                                     // Setting camera position (ray origin)...
+  canvas_position = normalize(vec3(quad.x*AR, quad.y, 1.0f));                   // Computing position on canvas (ray intersection on quad)...
   d_marching = 0.0f;                                                            // Resetting marching distance...
   i = 0;                                                                        // Resetting step index... 
 
@@ -107,7 +110,7 @@ void main()
           (i < MAX_STEPS)                                                       // Checking step index...
         )
   {
-    ray_marching = ray_origin + d_marching*ray_direction;                       // Computing marching ray...      
+    ray_marching = camera_position + d_marching*canvas_position;                // Computing marching ray...      
     sdf = INF;                                                                  // Setting SDF to infinity...
     sdf = min(sdf, SDF_plane(ray_marching));                                    // Computing signed distance field...
     sdf = min(sdf, SDF_sphere(ray_marching));                                   // Computing signed distance field...
@@ -115,7 +118,7 @@ void main()
     i++;                                                                        // Updating step index...
   }
 
-  ray_marching = ray_origin + d_marching*ray_direction;                         // Computing final marching ray...
+  ray_marching = camera_position + d_marching*canvas_position;                  // Computing final marching ray...
 
   // COMPUTING NORMAL VECTOR:
   sdf_L = INF;                                                                  // Setting SDF to infinity (left limit)...
@@ -153,12 +156,12 @@ void main()
   // COMPUTING LIGHTNING:
   light_direction = normalize(light_position - ray_marching);                   // Computing light direction...
   light_diffuse_intensity = clamp(dot(n, light_direction), 0.0f, 1.0f);         // Computing light diffusion intensity...
-  light_diffuse = light_color*(light_diffuse_intensity*material_diffuse);       // Computing diffuse light color...
-  light_reflection_direction = reflect(-light_direction, n);                    // Computing light reflection direction...
-  //light_specular_intensity = pow(max(dot(ray_origin - ray_marching, light_reflection_direction), 0.0), material_shininess);
-  //light_specular_intensity = pow(max(dot(-ray_direction, light_reflection_direction), 0.0), material_shininess);
-  light_specular_intensity = pow(max(dot(normalize(ray_origin - ray_marching), light_reflection_direction), 0.0), material_shininess);
-  light_specular = light_color*(light_specular_intensity*material_specular);    // Computing specular light color...
+  light_diffuse_color = light_color*(light_diffuse_intensity*material_diffuse); // Computing diffuse light color...
+  light_specular_direction = reflect(-light_direction, n);                      // Computing light reflection direction...
+  //light_specular_intensity = pow(max(dot(camera_position - ray_marching, light_reflection_direction), 0.0), material_shininess);
+  //light_specular_intensity = pow(max(dot(-canvas_position, light_reflection_direction), 0.0), material_shininess);
+  light_specular_intensity = pow(max(dot(normalize(camera_position - ray_marching), light_specular_direction), 0.0), material_shininess);
+  light_specular_color = light_color*(light_specular_intensity*material_specular);    // Computing specular light color...
 
   fragment_color = vec4(light_ambient + light_diffuse + light_specular, 1.0f);  // Setting output color...
 }
