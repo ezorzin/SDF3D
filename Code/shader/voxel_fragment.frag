@@ -25,7 +25,7 @@ out vec4 fragment_color;                                                        
 float SDF_sphere(vec3 p)
 {
   float x = 0.0f;                                                               // Sphere x-coordinate.
-  float y = 3.0f;                                                               // Sphere y-coordinate.
+  float y = 2.0f;                                                               // Sphere y-coordinate.
   float z = 0.0f;                                                               // Sphere z-coordinate.
   float r = 1.0f;                                                               // Sphere radius.
   vec3  s = vec3(x, y, z);                                                      // Sphere position.
@@ -85,9 +85,9 @@ void main()
   vec3  n;                                                                      // Scene's normal vector.
 
   // INITIALIZING RAY MARCHING:
-  camera_position = vec3(0.0f, 1.0f, 0.0f);                                     // Setting camera position (ray origin)...
-  camera_direction = normalize(vec3(quad.x*AR, quad.y, 2.0f));                  // Computing position on canvas (ray intersection on quad)...
-  camera_direction = normalize((inverse(V_mat)*vec4(camera_direction, 0.0f)).xyz);
+  camera_position = vec3(0.0f, 1.0f, 10.0f);                                     // Setting camera position (ray origin)...
+  camera_direction = normalize(vec3(quad.x*AR, quad.y, -2.0f));                  // Computing position on canvas (ray intersection on quad)...
+  camera_direction = (inverse(V_mat)*vec4(camera_direction, 0.0f)).xyz;
   camera_position = (inverse(V_mat)*vec4(camera_position, 1.0f)).xyz;
   marching_distance = 0.0f;                                                     // Resetting marching distance...
   i = 0;                                                                        // Resetting step index... 
