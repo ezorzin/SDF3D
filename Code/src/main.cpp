@@ -8,7 +8,7 @@
 #define OY            0.0f                                                                          // y-axis orbit initial rotation.
 #define PX            0.0f                                                                          // x-axis pan initial translation.
 #define PY            0.0f                                                                          // y-axis pan initial translation.
-#define PZ            -2.0f                                                                         // z-axis pan initial translation.
+#define PZ            2.0f                                                                          // z-axis pan initial translation.
 
 #ifdef __linux__
   #define SHADER_HOME "../../Code/shader/"                                                          // Linux OpenGL shaders directory.
