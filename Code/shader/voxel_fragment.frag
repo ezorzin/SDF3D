@@ -18,12 +18,6 @@ out vec4 fragment_color;                                                        
 #define MAX_DISTANCE 100.0f                                                                         // Maximum marching distance.
 #define EPSILON 0.01f                                                                               // Minimum surface distance (ray marching epsilon).
 #define INF 1.0f/0.0f                                                                               // Infinity.
- 
-#define NU_NEAR_Z_CLIP            0.1f                                                              // Near z-clipping distance [small, but > 0.0].
-#define NU_FAR_Z_CLIP             100.0f                                                            // Far z-clipping distance [big, but < +inf].
-#define NU_FOV                    60.0f                                                             // Field of view [deg].
-#define NU_IOD                    0.02f                                                             // Intraocular distance.
-#define NU_SCREEN_DISTANCE        -2.5f                                                             // Screen distance.
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// OBJECT'S SIGNED DISTANCE FIELDS IMPLICIT FUNCTIONS /////////////////////
@@ -32,8 +26,8 @@ float SDF_sphere(vec3 p)
 {
   float x = 0.0f;                                                                                   // Sphere x-coordinate.
   float y = 0.0f;                                                                                   // Sphere y-coordinate.
-  float z = -1.0f;                                                                                   // Sphere z-coordinate.
-  float r = 1.0f;                                                                                   // Sphere radius.
+  float z = 0.0f;                                                                                   // Sphere z-coordinate.
+  float r = 0.2f;                                                                                   // Sphere radius.
   vec3  s = vec3(x, y, z);                                                                          // Sphere position.
   float SDF = length(p - s) - r;                                                                    // Signed distance field.
  
@@ -62,7 +56,7 @@ void main()
   vec3  camera_position;                                                                            // Camera position (ray marching origin).
   vec3  camera_direction;                                                                           // Camera direction.
   float camera_fov;                                                                                 // Camera field of view (degrees).
-  float camera_frustum;                                                                             // Camera frustum length.
+  float camera_focal;                                                                               // Camera focal distance.
   
   // Light variables:
   vec3  light_position;                                                                             // Light position.
@@ -93,12 +87,13 @@ void main()
   vec3  n;                                                                                          // Scene's normal vector.
 
   // INITIALIZING RAY MARCHING:
-  camera_fov = 45;                                                                                  // Setting camera field of view...
-  camera_frustum = 1.0f/tan(camera_fov*PI/360.0f);                                                     // Computing camera frustum length...
-  camera_position = vec3(0.0f, 1.0f, 0.0f);                                                        // Setting camera position (ray origin)...
+  camera_fov = 60;                                                                                  // Setting camera field of view...
+  camera_focal = 2.0f/tan(camera_fov*PI/360.0f);                                                    // Computing camera frustum length...
+  camera_position = vec3(0.0f, 0.001f, 0.6f);                                                       // Setting camera position (ray origin)...
   camera_position = (inverse(V_mat)*vec4(camera_position, 1.0f)).xyz;                               // Applying arcball to camera position...
-  camera_direction = normalize(vec3(quad.x*AR, quad.y, camera_frustum));                           // Computing position on canvas (ray intersection on quad)...
+  camera_direction = normalize(vec3(quad.x*AR, quad.y, -camera_focal));                             // Computing position on canvas (ray intersection on quad)...
   camera_direction = (inverse(V_mat)*vec4(camera_direction, 0.0f)).xyz;                             // Applying arcball to camera direction...
+  camera_direction = normalize(camera_direction);
   
   marching_distance = 0.0f;                                                                         // Resetting marching distance...
   i = 0;                                                                                            // Resetting step index... 
