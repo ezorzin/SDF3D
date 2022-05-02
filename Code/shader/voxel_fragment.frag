@@ -72,7 +72,7 @@ float planeSDF(vec3 position)
 
 float sceneSDF(vec3 position)
 {
-  float sdf = INF;
+  float sdf = INF;                                                                                  // Signed distance field.
 
   sdf = min(sdf, planeSDF(position));                                                               // Computing signed distance field...
   sdf = min(sdf, sphereSDF(position));                                                              // Computing signed distance field...
@@ -80,12 +80,15 @@ float sceneSDF(vec3 position)
   return sdf;                                                                                       // Returning signed distance field...
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////// RAY MARCHING ////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 float raymarch(vec3 position, vec3 direction)
 {
-  float distance = 0.0f;
-  float sdf;
-  float i;
-  vec3  ray;
+  float distance = 0.0f;                                                                            // Marching distance.
+  float sdf;                                                                                        // Signed distance field.
+  float i;                                                                                          // Step index.
+  vec3  ray;                                                                                        // Marching ray.
 
   for (i = 0; i < MAX_STEPS; i++)
   {
@@ -93,41 +96,39 @@ float raymarch(vec3 position, vec3 direction)
     sdf = sceneSDF(ray);                                                                            // Computing scene distance field...
     distance += sdf;                                                                                // Updating marching distance...
 
-    if(distance > MAX_DISTANCE || sdf < EPSILON) break;
+    if(distance > MAX_DISTANCE || sdf < EPSILON) break;                                             // Checking numeric precision constraints...
   }
 
-  return distance;                                                                                  // Returning final distance...
+  return distance;                                                                                  // Returning final marching distance...
 }
 
 float shadow(vec3 position, vec3 direction, float k)
 {
-  float distance = 0.0f;
-  float sdf;
-  float i;
-  vec3  ray;
-  float res = 1.0f;
-  float ph = INF;
-  float y;
-  float d;
+  float distance = 0.0f;                                                                            // Marching distance.
+  float sdf = INF;                                                                                  // Previous step signed distance field.
+  float sdf_new;                                                                                    // Current step signed distance field.
+  float i;                                                                                          // Step index.
+  vec3  ray;                                                                                        // Marching ray.
+  float shadow = 1.0f;                                                                              // Shadow intensity.
+  float intersection;                                                                               // Previous to current SDF on-ray intersection point.
+  float d_est;                                                                                      // Estimated closest distance.
 
   for (i = 0; i < MAX_STEPS; i++)
   {
     ray = position + distance*direction;                                                            // Computing marching ray...   
-    sdf = sceneSDF(ray);                                                                            // Computing scene distance field... 
-    y = (i == 0) ? 0.0f : sdf*sdf/(2.0f*ph);
-    d = sqrt(sdf*sdf - y*y);
-    res = min( res, k*d/max(0.0f, distance - y) );
-    ph = sdf;
-    distance += sdf;                                                                                // Updating marching distance...
+    sdf_new = sceneSDF(ray);                                                                        // Computing scene distance field... 
+    intersection = (i == 0) ? 0.0f : sdf_new*sdf_new/(2.0f*sdf);                                    // Computing on-ray intersection point...
+    d_est = sqrt(sdf_new*sdf_new - intersection*intersection);                                      // Computing estimated closest distance...
+    shadow = min(shadow, k*d_est/max(0.0f, distance - intersection));                               // Computing shadow intensity...
+    sdf = sdf_new;                                                                                  // Backing up signed distance field...
+    distance += sdf_new;                                                                            // Updating marching distance...
     
-    if(distance > MAX_DISTANCE || res < EPSILON)
-    {
-      break;
-    }
+    if(distance > MAX_DISTANCE || shadow < EPSILON) break;                                          // Checking numeric precision constraints...
   }
-  res = clamp(res, 0.0f, 1.0f);
 
-  return res;
+  shadow = clamp(shadow, 0.0f, 1.0f);                                                               // Clamping shadow intensity...
+
+  return shadow;                                                                                    // Returning final shadow intensity...
 }
 
 vec3 normal(vec3 position)
@@ -158,24 +159,24 @@ vec3 normal(vec3 position)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 void main()
 {
-  Camera    camera;
-  Light     light;
-  vec3      ray;
-  vec3      view;
-  vec3      incident;
-  vec3      reflected;
-  vec3      halfway;
-  vec3      ambient;
-  vec3      diffusion;
-  vec3      reflection;
-  vec3      P;
-  vec3      N;
-  float     d;
-  Material  M;
-
+  Camera    camera;                                                                                 // Camera.
+  Light     light;                                                                                  // Light.
+  Material  M;                                                                                      // Material.
+  vec3      ray;                                                                                    // Marching ray.
+  float     d;                                                                                      // Marching distance.
+  vec3      view;                                                                                   // View direction.
+  vec3      incident;                                                                               // Incident light direction.
+  vec3      reflected;                                                                              // Reflected light direction.
+  vec3      halfway;                                                                                // Halfway light direction (Blinn-Phong).
+  vec3      ambient;                                                                                // Ambient light color.
+  vec3      diffusion;                                                                              // Diffusion light color.
+  vec3      reflection;                                                                             // Reflection light color.
+  vec3      P;                                                                                      // Scene position.
+  vec3      N;                                                                                      // Scene normal direction.
+  
   // INITIALIZING RAY MARCHING:
   camera.fov = 60;                                                                                  // Setting camera field of view...
-  camera.pos = vec3(0.0f, 0.1f, 0.6f);                                                              // Setting camera position...
+  camera.pos = vec3(0.0f, 0.2f, 2.0f);                                                              // Setting camera position...
   camera.pos = (inverse(V_mat)*vec4(camera.pos, 1.0f)).xyz;                                         // Applying arcball to camera position...
 
   light.pos = vec3(5.0f, 5.0f, 0.0f);                                                               // Setting light position...
@@ -200,12 +201,8 @@ void main()
   incident = normalize(light.pos - P);                                                              // Computing incident light direction...
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
-  light.ref = pow(max(dot(N, halfway), 0.0f), M.shn);                                               // Computing light reflected intensity
-  light.dif = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, 10.0f);                                                  // Computing light diffused intensity...
-  
-  //d = raymarch(P + N*2.0f*EPSILON, incident);
-  //if(d < length(incident)) light.dif *= light.amb;
-  
+  light.ref = pow(max(dot(N, halfway), 0.0f), M.shn);                                               // Computing light reflection intensity
+  light.dif = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, 10.0f);      // Computing light diffusion intensity... 
   ambient = light.amb*M.amb;                                                                        // Computing light ambient color...
   diffusion = light.dif*M.dif;                                                                      // Computing light diffused color...
   reflection = light.ref*M.ref;                                                                     // Computing light reflected color...
