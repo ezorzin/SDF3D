@@ -99,6 +99,37 @@ float raymarch(vec3 position, vec3 direction)
   return distance;                                                                                  // Returning final distance...
 }
 
+float shadow(vec3 position, vec3 direction, float k)
+{
+  float distance = 0.0f;
+  float sdf;
+  float i;
+  vec3  ray;
+  float res = 1.0f;
+  float ph = INF;
+  float y;
+  float d;
+
+  for (i = 0; i < MAX_STEPS; i++)
+  {
+    ray = position + distance*direction;                                                            // Computing marching ray...   
+    sdf = sceneSDF(ray);                                                                            // Computing scene distance field... 
+    y = (i == 0) ? 0.0f : sdf*sdf/(2.0f*ph);
+    d = sqrt(sdf*sdf - y*y);
+    res = min( res, k*d/max(0.0f, distance - y) );
+    ph = sdf;
+    distance += sdf;                                                                                // Updating marching distance...
+    
+    if(distance > MAX_DISTANCE || res < EPSILON)
+    {
+      break;
+    }
+  }
+  res = clamp(res, 0.0f, 1.0f);
+
+  return res;
+}
+
 vec3 normal(vec3 position)
 {
   float nx;                                                                                         // Scene SDF's gradient x-component.
@@ -154,7 +185,7 @@ void main()
   M.amb = vec3(0.0f, 0.2f, 0.8f);                                                                   // Setting material ambient color...
   M.dif = vec3(0.0f, 0.2f, 0.8f);                                                                   // Setting material diffuse color...
   M.ref = vec3(0.5f, 0.5f, 0.5f);                                                                   // Setting material specular color...
-  M.shn   = 32.0f;                                                                                  // Setting material shininess...
+  M.shn   = 12.0f;                                                                                  // Setting material shininess...
 
   ray = normalize(vec3(quad.x*AR, quad.y, -2.0f/tan(camera.fov*PI/360.0f)));                        // Computing position on canvas (ray intersection on quad)...
   ray = normalize((inverse(V_mat)*vec4(ray, 0.0f)).xyz);                                            // Applying arcball to camera direction...
@@ -170,10 +201,10 @@ void main()
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
   light.ref = pow(max(dot(N, halfway), 0.0f), M.shn);                                               // Computing light reflected intensity
-  light.dif = clamp(dot(N, incident), 0.0f, 1.0f);                                                  // Computing light diffused intensity...
+  light.dif = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, 10.0f);                                                  // Computing light diffused intensity...
   
-  d = raymarch(P + N*2.0f*EPSILON, incident);
-  if(d < length(incident)) light.dif *= light.amb;
+  //d = raymarch(P + N*2.0f*EPSILON, incident);
+  //if(d < length(incident)) light.dif *= light.amb;
   
   ambient = light.amb*M.amb;                                                                        // Computing light ambient color...
   diffusion = light.dif*M.dif;                                                                      // Computing light diffused color...
