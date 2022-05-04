@@ -9,6 +9,16 @@ uniform float AR;                                                               
 in  vec4 color;                                                                                     // Voxel color.
 in  vec2 quad;                                                                                      // Voxel quad.
 
+layout(std430, binding = 0) buffer voxel_color
+{
+  vec4 color_SSBO[];                                                            // Voxel color SSBO.
+};
+
+layout(std430, binding = 1) buffer voxel_position
+{
+  vec4 position_SSBO[];                                                         // Voxel position SSBO.
+};
+
 out vec4 fragment_color;                                                                            // Fragment color.
  
 // CONSTANTS:
@@ -87,7 +97,7 @@ float raymarch(vec3 position, vec3 direction)
 {
   float distance = 0.0f;                                                                            // Marching distance.
   float sdf;                                                                                        // Signed distance field.
-  float i;                                                                                          // Step index.
+  int   i;                                                                                          // Step index.
   vec3  ray;                                                                                        // Marching ray.
 
   for (i = 0; i < MAX_STEPS; i++)
@@ -107,7 +117,7 @@ float shadow(vec3 position, vec3 direction, float k)
   float distance = 0.0f;                                                                            // Marching distance.
   float sdf = INF;                                                                                  // Previous step signed distance field.
   float sdf_new;                                                                                    // Current step signed distance field.
-  float i;                                                                                          // Step index.
+  int   i;                                                                                          // Step index.
   vec3  ray;                                                                                        // Marching ray.
   float shadow = 1.0f;                                                                              // Shadow intensity.
   float intersection;                                                                               // Previous to current SDF on-ray intersection point.
