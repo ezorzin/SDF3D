@@ -6,15 +6,15 @@
 #define MAX_DISTANCE 100.0f                                                                         // Maximum marching distance.
 #define EPSILON 0.01f                                                                               // Minimum surface distance (ray marching epsilon).
 #define INF 1.0f/0.0f                                                                               // Infinity.
-#define DX (float3)(EPSILON, 0.0f, 0.0f)                                                                // x-direction increment.
-#define DY (float3)(0.0f, EPSILON, 0.0f)                                                                // y-direction increment.
-#define DZ (float3)(0.0f, 0.0f, EPSILON)                                                                // z-direction increment.
+#define DX (float3)(EPSILON, 0.0f, 0.0f)                                                            // x-direction increment.
+#define DY (float3)(0.0f, EPSILON, 0.0f)                                                            // y-direction increment.
+#define DZ (float3)(0.0f, 0.0f, EPSILON)                                                            // z-direction increment.
 
 // CAMERA:
 struct Camera
 {
-  float3  pos;                                                                                        // Camera position.
-  float fov;                                                                                        // Camera field of view (degrees).
+  float3 pos;                                                                                        // Camera position.
+  float  fov;                                                                                        // Camera field of view (degrees).
 };
 
 // LIGHT:
