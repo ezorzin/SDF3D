@@ -11,7 +11,7 @@ in  vec2 quad;                                                                  
 
 layout(std430, binding = 0) buffer voxel_color
 {
-  vec4 color_SSBO[];                                                            // Voxel color SSBO.
+  vec4 color_SSBO[800][600];                                                            // Voxel color SSBO.
 };
 
 layout(std430, binding = 1) buffer voxel_position
@@ -217,5 +217,6 @@ void main()
   diffusion = light.dif*M.dif;                                                                      // Computing light diffused color...
   reflection = light.ref*M.ref;                                                                     // Computing light reflected color...
 
-  fragment_color = vec4(ambient + diffusion + reflection, 1.0f);                                    // Setting output color...
+  //fragment_color = vec4(ambient + diffusion + reflection, 1.0f);                                    // Setting output color...
+  fragment_color = color_SSBO[int((quad.x + 1.0f)*400)][int((quad.x + 1.0f)*300)];
 }
