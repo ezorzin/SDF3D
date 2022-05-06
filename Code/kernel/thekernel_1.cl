@@ -139,72 +139,114 @@ float3 normal(float3 position)
   sdf_R = sceneSDF(position + DZ);                                                                  // Computing signed distance field (left limit)...
   nz = sdf_R - sdf_L;                                                                               // Computing gradient (x-component, centered derivative)...   
   
-  return normalize((float3)(nx, ny, nz));                                                               // Returning normal vector...
+  return normalize((float3)(nx, ny, nz));                                                           // Returning normal vector...
 }
 
-__kernel void thekernel(__global float4*    color,                              // Color.
-                        __global float4*    position                            // Position.
+float3 reflect(float3 I, float3 N)
+{
+  float3 reflect;
+
+  reflect = I - 2.0f*dot(N, I)*N;
+
+  return reflect;
+}
+
+__kernel void thekernel(__global float4*    fragment_color,                                         // Fragment color.
+                        __global float4*    V,                                                      // View matrix [4x4].
+                        __global float4*    canvas_param,                                           // Canvas [W, H, AR, FOV].
+                        __global float4*    camera_param,                                           // Camera [x, y, z, 1.0f].
+                        __global float4*    light_param,                                            // Light  [x, y, z, 1.0f].
+                        __global float4*    material_param                                          // Material.
                         )
 { 
-  struct Camera    camera;                                                                                 // Camera.
-  struct Light     light;                                                                                  // Light.
-  struct Material  M;                                                                                      // Material.
-  float3      ray;                                                                                    // Marching ray.
-  float     d;                                                                                      // Marching distance.
-  float3      view;                                                                                   // View direction.
-  float3      incident;                                                                               // Incident light direction.
-  float3      reflected;                                                                              // Reflected light direction.
-  float3      halfway;                                                                                // Halfway light direction (Blinn-Phong).
-  float3      ambient;                                                                                // Ambient light color.
-  float3      diffusion;                                                                              // Diffusion light color.
-  float3      reflection;                                                                             // Reflection light color.
-  float3      P;                                                                                      // Scene position.
-  float3      N;                                                                                      // Scene normal direction.
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////// INDICES //////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  uint         i = get_global_id(0);                                                                // Global index i [#].
+  uint         j = get_global_id(1);                                                                // Global index j [#].
+
+  float        W = canvas_param[0].x;
+  float        H = canvas_param[0].y;
+  float        AR = canvas_param[0].z;
+  float        FOV = canvas_param[0].w;
+
+  float        x = i/W;
+  float        y = j/H;
+
+  float4       V_0 = V[0];
+  float4       V_1 = V[1];
+  float4       V_2 = V[2];
+  float4       V_3 = V[3];
+
+  float4       camera  = camera_param[0];
+  float        camera_x;
+  float        camera_y;
+  float        camera_z;
+  float        camera_w;
+
+  float4       camera_pos = camera_param[0];                                                        // Camera position [x, y, z, w].
+  float4       light_pos = light_param[0];                                                          // Light position [x, y, z, w].
+  float4       light_col = light_param[1];                                                          // Light color [r, g, b, ambient].
+  float4       M_amb = material_param[0];
+  float4       M_dif = material_param[1];
+  float4       M_ref = material_param[2];
+  float4       M_shn = material_param[3];
   
+
+  float4      ray;                                                                                  // Marching ray.
+  float       ray_x;
+  float       ray_y;
+  float       ray_z;
+  float       ray_w;
+
+  float       d;                                                                                    // Marching distance.
+  float3      view;                                                                                 // View direction.
+  float3      incident;                                                                             // Incident light direction.
+  float3      reflected;                                                                            // Reflected light direction.
+  float3      halfway;                                                                              // Halfway light direction (Blinn-Phong).
+  float4      ambient;                                                                              // Ambient light color.
+  float4      diffusion;                                                                            // Diffusion light color.
+  float4      reflection;                                                                           // Reflection light color.
+  float3      P;                                                                                    // Scene position.
+  float3      N;                                                                                    // Scene normal direction.
+  float       light_dif;
+  float       light_ref;
+
   // INITIALIZING RAY MARCHING:
-  camera.fov = 60;                                                                                  // Setting camera field of view...
-  camera.pos = (float3)(0.0f, 0.2f, 2.0f);                                                              // Setting camera position...
-  //camera.pos = (inverse(V_mat)*vec4(camera.pos, 1.0f)).xyz;                                         // Applying arcball to camera position...
+  float fov = 60.0f;                                                                                // Setting camera field of view...
 
-  light.pos = (float3)(5.0f, 5.0f, 0.0f);                                                               // Setting light position...
-  light.col = (float3)(0.7f, 0.7f, 0.7f);                                                               // Setting light color...
-  light.amb = 0.1f;                                                                                 // Setting light ambient intensity...
+  camera_x = dot(V_0, camera);                                                                      // Applying arcball to camera position...
+  camera_y = dot(V_1, camera);                                                                      // Applying arcball to camera position...
+  camera_z = dot(V_2, camera);                                                                      // Applying arcball to camera position...
+  camera_w = dot(V_3, camera);                                                                      // Applying arcball to camera position...
+  camera.x = camera_x;
+  camera.y = camera_y;
+  camera.z = camera_z;
+  camera.w = camera_w;                                  
 
-  M.amb = (float3)(0.0f, 0.2f, 0.8f);                                                                   // Setting material ambient color...
-  M.dif = (float3)(0.0f, 0.2f, 0.8f);                                                                   // Setting material diffuse color...
-  M.ref = (float3)(0.5f, 0.5f, 0.5f);                                                                   // Setting material specular color...
-  M.shn   = 12.0f;                                                                                  // Setting material shininess...
-
-  //ray = normalize(vec3(quad.x*AR, quad.y, -2.0f/tan(camera.fov*PI/360.0f)));                        // Computing position on canvas (ray intersection on quad)...
-  //ray = normalize((inverse(V_mat)*vec4(ray, 0.0f)).xyz);                                            // Applying arcball to camera direction...
+  ray = normalize((float4)(x*AR, y, -2.0f/tan(fov*PI/360.0f), 0.0f));                               // Computing position on canvas (ray intersection on quad)...
+  ray_x = dot(V_0, ray);                                                                            // Applying arcball to ray direction...
+  ray_y = dot(V_1, ray);                                                                            // Applying arcball to ray direction...
+  ray_z = dot(V_2, ray);                                                                            // Applying arcball to ray direction...
+  ray_w = dot(V_3, ray);                                                                            // Applying arcball to ray direction...
+  ray = normalize((float4)(ray_x, ray_y, ray_z, 0.0f));                                            
   
   // COMPUTING RAY MARCHING:
-  d = raymarch(camera.pos, ray);                                                                    // Computing scene distance...
-  P = camera.pos + d*ray;                                                                           // Computing scene position...
+  d = raymarch(camera_pos.xyz, ray.xyz);                                                            // Computing scene distance...
+  P = camera_pos.xyz + d*ray.xyz;                                                                   // Computing scene position...
   N = normal(P);                                                                                    // Computing scene normal...
   
   // COMPUTING LIGHTNING:
-  view = normalize(camera.pos - P);                                                                 // Computing view direction...
-  incident = normalize(light.pos - P);                                                              // Computing incident light direction...
-  //reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
+  view = normalize(camera_pos.xyz - P);                                                             // Computing view direction...
+  incident = normalize(light_pos.xyz - P);                                                          // Computing incident light direction...
+  reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
-  light.ref = pow(max(dot(N, halfway), 0.0f), M.shn);                                               // Computing light reflection intensity
-  light.dif = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, 10.0f);      // Computing light diffusion intensity... 
-  ambient = light.amb*M.amb;                                                                        // Computing light ambient color...
-  diffusion = light.dif*M.dif;                                                                      // Computing light diffused color...
-  reflection = light.ref*M.ref;                                                                     // Computing light reflected color...
+  light_ref = pow(max(dot(N, halfway), 0.0f), length(M_shn));                                       // Computing light reflection intensity
+  light_dif = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, 10.0f);      // Computing light diffusion intensity... 
+  ambient = light_col.a*M_amb;                                                                      // Computing light ambient color...
+  diffusion = light_dif*M_dif;                                                                      // Computing light diffused color...
+  reflection = light_ref*M_ref;                                                                     // Computing light reflected color...
 
-  int i;
-  int j;
-
-  for (i = 0; i < 800; i++)
-  {
-    for (j = 0; j < 600; j++)
-    {
-      color[i + 800*j] = (float4)((float)(i)/800.0f, (float)(j)/600.0f, 0.0f, 1.0f);
-    }
-  }
-  
-
-  //fragment_color = vec4(ambient + diffusion + reflection, 1.0f);                                    // Setting output color...
+  fragment_color[i + (uint)W*j] = ambient + diffusion + reflection;                                 // Setting output color...
+  fragment_color[i + (uint)W*j].a = 1.0f;
 }
