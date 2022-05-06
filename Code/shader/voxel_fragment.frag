@@ -10,7 +10,7 @@ in  vec2 quad;                                                                  
 
 layout(std430, binding = 0) buffer voxel_color
 {
-  vec4 color_SSBO[800][600];                                                            // Voxel color SSBO.
+  vec4 color_SSBO[800*600];                                                            // Voxel color SSBO.
 };
 
 out vec4 fragment_color;                                                                            // Fragment color.
@@ -163,6 +163,7 @@ vec3 normal(vec3 position)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 void main()
 {
+  /*
   Camera    camera;                                                                                 // Camera.
   Light     light;                                                                                  // Light.
   Material  M;                                                                                      // Material.
@@ -212,5 +213,6 @@ void main()
   reflection = light.ref*M.ref;                                                                     // Computing light reflected color...
 
   fragment_color = vec4(ambient + diffusion + reflection, 1.0f);                                    // Setting output color...
-  //fragment_color = color_SSBO[int((quad.x + 1.0f)*400)][int((quad.x + 1.0f)*300)];
+  */
+  fragment_color = color_SSBO[int((quad.x + 1.0f)*400) + 800*int((quad.y + 1.0f)*300)];
 }

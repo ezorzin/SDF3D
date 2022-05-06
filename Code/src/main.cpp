@@ -54,12 +54,17 @@ int main ()
   nu::opencl*         cl             = new nu::opencl (nu::GPU);                                    // OpenCL context.
   nu::kernel*         K1             = new nu::kernel ();                                           // OpenCL kernel array.
   nu::float4*         color          = new nu::float4 (0);                                          // Color [].
-  nu::float4*         position       = new nu::float4 (1);                                          // Position [m].
+  //nu::float4*         position       = new nu::float4 (1);                                          // Position [m].
+  nu::float4*         V              = new nu::float4 (1);                                          // View matrix.
+  nu::float4*         canvas_param   = new nu::float4 (2);                                          // Canvas parameters.
+  nu::float4*         camera_param   = new nu::float4 (3);                                          // Camera parameters.
+  nu::float4*         light_param    = new nu::float4 (4);                                          // Light parameters.
+  nu::float4*         material_param = new nu::float4 (5);                                          // Material parameters.
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////// DATA INITIALIZATION //////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
-  position->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                              // Setting node color...
+  //position->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                              // Setting node color...
 
   int                 i;
 
@@ -67,6 +72,20 @@ int main ()
   {
     color->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                               // Setting node color...
   }
+
+  V->data.push_back ({1.0f, 0.0f, 0.0f, 0.0f});
+  V->data.push_back ({0.0f, 1.0f, 0.0f, 0.0f});
+  V->data.push_back ({0.0f, 0.0f, 1.0f, 0.0f});
+  V->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});
+
+  canvas_param->data.push_back ({800.0f, 600.0f, 800.0f/600.0f, 60.0f});
+  camera_param->data.push_back ({0.0f, 0.2f, 2.0f, 1.0f});
+  light_param->data.push_back ({5.0f, 5.0f, 0.0f, 1.0f});
+  light_param->data.push_back ({0.7f, 0.7f, 0.7f, 0.1f});
+  material_param->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});
+  material_param->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});
+  material_param->data.push_back ({0.5f, 0.5f, 0.5f, 1.0f});
+  material_param->data.push_back ({12.0f, 12.0f, 12.0f, 12.0f});
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////// OPENCL KERNELS INITIALIZATION /////////////////////////////////
@@ -105,6 +124,14 @@ int main ()
     gl->gamepad_navigation (gmp_orbit_rate, gmp_pan_rate, gmp_decaytime, gmp_deadzone);             // Polling gamepad...
     gl->plot (sh, pmode, vmode);                                                                    // Plotting shared arguments...
     gl->end ();                                                                                     // Ending gl...
+
+    V->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8], gl->V_mat[12]};
+    V->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9], gl->V_mat[13]};
+    V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
+    V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
+
+    cl->write (1);
+
     cl->get_toc ();                                                                                 // Getting "toc" [us]...
   }
 
@@ -114,8 +141,14 @@ int main ()
   delete cl;                                                                                        // Deleting OpenCL context...
   delete gl;                                                                                        // Deleting OpenGL context...
   delete sh;                                                                                        // Deleting shader...
-  delete position;                                                                                  // Deleting position data...
+  delete K1;
   delete color;                                                                                     // Deleting color data...
+  delete color;
+  delete V;
+  delete camera_param;
+  delete canvas_param;
+  delete light_param;
+  delete material_param;
 
   return 0;
 }
