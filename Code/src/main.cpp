@@ -54,7 +54,6 @@ int main ()
   nu::opencl*         cl             = new nu::opencl (nu::GPU);                                    // OpenCL context.
   nu::kernel*         K1             = new nu::kernel ();                                           // OpenCL kernel array.
   nu::float4*         color          = new nu::float4 (0);                                          // Color [].
-  //nu::float4*         position       = new nu::float4 (1);                                          // Position [m].
   nu::float4*         V              = new nu::float4 (1);                                          // View matrix.
   nu::float4*         canvas_param   = new nu::float4 (2);                                          // Canvas parameters.
   nu::float4*         camera_param   = new nu::float4 (3);                                          // Camera parameters.
@@ -64,8 +63,6 @@ int main ()
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////// DATA INITIALIZATION //////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
-  //position->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                              // Setting node color...
-
   int                 i;
 
   for(i = 0; i < (800*600); i++)
@@ -114,6 +111,15 @@ int main ()
   {
     cl->get_tic ();                                                                                 // Getting "tic" [us]...
 
+    V->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8], gl->V_mat[12]};
+    V->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9], gl->V_mat[13]};
+    V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
+    V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
+
+    //std::cout << "T0 = " << gl->V_mat[12] << "T1 = " << gl->V_mat[13] << "T2 = " << gl->V_mat[14] <<
+    //  "T3 = " << gl->V_mat[15] << std::endl;
+
+    cl->write (1);
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
     cl->execute (K1, nu::WAIT);                                                                     // Executing OpenCL kernel...
     cl->release ();                                                                                 // Releasing OpenCL kernel...
@@ -124,13 +130,6 @@ int main ()
     gl->gamepad_navigation (gmp_orbit_rate, gmp_pan_rate, gmp_decaytime, gmp_deadzone);             // Polling gamepad...
     gl->plot (sh, pmode, vmode);                                                                    // Plotting shared arguments...
     gl->end ();                                                                                     // Ending gl...
-
-    V->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8], gl->V_mat[12]};
-    V->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9], gl->V_mat[13]};
-    V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
-    V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
-
-    cl->write (1);
 
     cl->get_toc ();                                                                                 // Getting "toc" [us]...
   }

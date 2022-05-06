@@ -17,5 +17,5 @@ out vec4 fragment_color;                                                        
 
 void main()
 {
-  fragment_color = color_SSBO[int((quad.x + 1.0f)*400) + 800*int((quad.y + 1.0f)*300)];             // Setting fragment color...
+  fragment_color = color_SSBO[int((quad.x + 1.0f)*399.5f) + 800*int((quad.y + 1.0f)*299.5f)];       // Setting fragment color...
 }

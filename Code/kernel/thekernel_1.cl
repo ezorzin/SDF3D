@@ -170,8 +170,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float        AR = canvas_param[0].z;
   float        FOV = canvas_param[0].w;
 
-  float        x = i/W;
-  float        y = j/H;
+  float        x = 2.0f*(i/W) - 1.0f;
+  float        y = 2.0f*(j/H) - 1.0f;
 
   float4       V_0 = V[0];
   float4       V_1 = V[1];
@@ -213,8 +213,6 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float       light_ref;
 
   // INITIALIZING RAY MARCHING:
-  float fov = 60.0f;                                                                                // Setting camera field of view...
-
   camera_x = dot(V_0, camera);                                                                      // Applying arcball to camera position...
   camera_y = dot(V_1, camera);                                                                      // Applying arcball to camera position...
   camera_z = dot(V_2, camera);                                                                      // Applying arcball to camera position...
@@ -224,7 +222,10 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   camera.z = camera_z;
   camera.w = camera_w;                                  
 
-  ray = normalize((float4)(x*AR, y, -2.0f/tan(fov*PI/360.0f), 0.0f));                               // Computing position on canvas (ray intersection on quad)...
+  //printf("%f\n", camera.w);
+
+  ray = normalize((float4)(x*AR, y, -2.0f/tan(FOV*PI/360.0f), 0.0f));                                          // Computing position on canvas (ray intersection on quad)...
+  ray.w = 1.0f;
   ray_x = dot(V_0, ray);                                                                            // Applying arcball to ray direction...
   ray_y = dot(V_1, ray);                                                                            // Applying arcball to ray direction...
   ray_z = dot(V_2, ray);                                                                            // Applying arcball to ray direction...
