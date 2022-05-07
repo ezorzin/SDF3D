@@ -34,58 +34,57 @@
 int main ()
 {
   // MOUSE PARAMETERS:
-  float               ms_orbit_rate  = 1.0f;                                                        // Orbit rotation rate [rev/s].
-  float               ms_pan_rate    = 5.0f;                                                        // Pan translation rate [m/s].
-  float               ms_decaytime   = 1.25f;                                                       // Pan LP filter decay time [s].
+  float               ms_orbit_rate       = 1.0f;                                                   // Orbit rotation rate [rev/s].
+  float               ms_pan_rate         = 5.0f;                                                   // Pan translation rate [m/s].
+  float               ms_decaytime        = 1.25f;                                                  // Pan LP filter decay time [s].
 
   // GAMEPAD PARAMETERS:
-  float               gmp_orbit_rate = 1.0f;                                                        // Orbit angular rate coefficient [rev/s].
-  float               gmp_pan_rate   = 1.0f;                                                        // Pan translation rate [m/s].
-  float               gmp_decaytime  = 1.25f;                                                       // Low pass filter decay time [s].
-  float               gmp_deadzone   = 0.30f;                                                       // Gamepad joystick deadzone [0...1].
+  float               gmp_orbit_rate      = 1.0f;                                                   // Orbit angular rate coefficient [rev/s].
+  float               gmp_pan_rate        = 1.0f;                                                   // Pan translation rate [m/s].
+  float               gmp_decaytime       = 1.25f;                                                  // Low pass filter decay time [s].
+  float               gmp_deadzone        = 0.30f;                                                  // Gamepad joystick deadzone [0...1].
 
   // OPENGL:
-  nu::opengl*         gl             = new nu::opengl (NM, SX, SY, OX, OY, PX, PY, PZ);             // OpenGL context.
-  nu::shader*         sh             = new nu::shader ();                                           // OpenGL shader program.
-  nu::projection_mode pmode          = nu::MONOCULAR;                                               // OpenGL projection mode.
-  nu::view_mode       vmode          = nu::INVERSE;                                                 // OpenGL VIEW mode.
+  nu::opengl*         gl                  = new nu::opengl (NM, SX, SY, OX, OY, PX, PY, PZ);        // OpenGL context.
+  nu::shader*         sh                  = new nu::shader ();                                      // OpenGL shader program.
+  nu::projection_mode pmode               = nu::MONOCULAR;                                          // OpenGL projection mode.
+  nu::view_mode       vmode               = nu::INVERSE;                                            // OpenGL VIEW mode.
 
   // OPENCL:
-  nu::opencl*         cl             = new nu::opencl (nu::GPU);                                    // OpenCL context.
-  nu::kernel*         K1             = new nu::kernel ();                                           // OpenCL kernel array.
-  nu::float4*         color          = new nu::float4 (0);                                          // Color [].
-  nu::float4*         V              = new nu::float4 (1);                                          // View matrix.
-  nu::float4*         canvas_param   = new nu::float4 (2);                                          // Canvas parameters.
-  nu::float4*         camera_param   = new nu::float4 (3);                                          // Camera parameters.
-  nu::float4*         light_param    = new nu::float4 (4);                                          // Light parameters.
-  nu::float4*         material_param = new nu::float4 (5);                                          // Material parameters.
-
-  float               V_mat[16];
-  float               Q_mat[16];
+  nu::opencl*         cl                  = new nu::opencl (nu::GPU);                               // OpenCL context.
+  nu::kernel*         K1                  = new nu::kernel ();                                      // OpenCL kernel array.
+  nu::float4*         V                   = new nu::float4 (0);                                     // View matrix [4x4].
+  nu::float4*         canvas              = new nu::float4 (1);                                     // Canvas parameters [W, H, AR, FOV].
+  nu::float4*         light_position      = new nu::float4 (2);                                     // Light position [x, y, z, k].
+  nu::float4*         light_color         = new nu::float4 (3);                                     // Light color [r, g, b, ambient].
+  nu::float4*         ball_position       = new nu::float4 (4);                                     // Ball position [x, y, z, radius].
+  nu::float4*         material_ambient    = new nu::float4 (5);                                     // Material ambient color [r, g, b, transparency].
+  nu::float4*         material_diffusion  = new nu::float4 (6);                                     // Material diffusion color [r, g, b, n_index].
+  nu::float4*         material_reflection = new nu::float4 (7);                                     // Material reflection color [r, g, b, shininess].
+  nu::float4*         fragment_color      = new nu::float4 (8);                                     // Color [r, g, b, a].
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////// DATA INITIALIZATION //////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   int                 i;
 
+  V->data.push_back ({1.0f, 0.0f, 0.0f, 0.0f});                                                     // Initializing view matrix...
+  V->data.push_back ({0.0f, 1.0f, 0.0f, 0.0f});                                                     // Initializing view matrix...
+  V->data.push_back ({0.0f, 0.0f, 1.0f, 0.0f});                                                     // Initializing view matrix...
+  V->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                                     // Initializing view matrix...
+
+  canvas->data.push_back ({800.0f, 800.0f, 800.0f/600.0f, 60.0f});                                  // Initializing canvas parameters [W, H, AR, FOV]...
+  light_position->data.push_back ({5.0f, 5.0f, 0.0f, 10.0f});                                       // Initializing light position [x, y, z, k]...
+  light_color->data.push_back ({1.0f, 1.0f, 1.0f, 0.1f});                                           // Initializing light color [r, g, b, ambient]...
+  ball_position->data.push_back ({0.0f, 0.0f, 0.0f, 0.2f});                                         // Initializing ball position [x, y, z, radius]...
+  material_ambient->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});                                      // Initializing material ambient color [r, g, b, transparency]...
+  material_diffusion->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});                                    // Initializing material diffusion color [r, g, b, n_index]...
+  material_reflection->data.push_back ({0.5f, 0.5f, 0.5f, 12.0f});                                  // Initializing material reflection color [r, g, b, shininess]...
+
   for(i = 0; i < (800*800); i++)
   {
-    color->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                               // Setting node color...
+    fragment_color->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                      // Initializing fragment color...
   }
-
-  V->data.push_back ({1.0f, 0.0f, 0.0f, 0.0f});
-  V->data.push_back ({0.0f, 1.0f, 0.0f, 0.0f});
-  V->data.push_back ({0.0f, 0.0f, 1.0f, 0.0f});
-  V->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});
-
-  canvas_param->data.push_back ({800.0f, 800.0f, 800.0f/800.0f, 60.0f});
-  camera_param->data.push_back ({0.0f, 0.2f, 1.0f, 1.0f});
-  light_param->data.push_back ({5.0f, 5.0f, 0.0f, 1.0f});
-  light_param->data.push_back ({0.7f, 0.7f, 0.7f, 0.1f});
-  material_param->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});
-  material_param->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});
-  material_param->data.push_back ({0.5f, 0.5f, 0.5f, 1.0f});
-  material_param->data.push_back ({12.0f, 12.0f, 12.0f, 12.0f});
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////// OPENCL KERNELS INITIALIZATION /////////////////////////////////
@@ -119,7 +118,7 @@ int main ()
     V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
     V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
 
-    cl->write (1);
+    cl->write (0);
 
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
     cl->execute (K1, nu::WAIT);                                                                     // Executing OpenCL kernel...
@@ -142,13 +141,15 @@ int main ()
   delete gl;                                                                                        // Deleting OpenGL context...
   delete sh;                                                                                        // Deleting shader...
   delete K1;
-  delete color;                                                                                     // Deleting color data...
-  delete color;
   delete V;
-  delete camera_param;
-  delete canvas_param;
-  delete light_param;
-  delete material_param;
+  delete canvas;
+  delete light_position;
+  delete light_color;                                                                               // Deleting color data...
+  delete ball_position;
+  delete material_ambient;
+  delete material_diffusion;
+  delete material_reflection;
+  delete fragment_color;
 
   return 0;
 }

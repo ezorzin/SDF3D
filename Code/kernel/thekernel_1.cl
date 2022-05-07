@@ -13,27 +13,32 @@
 // CAMERA:
 struct Camera
 {
-  float4 pos;                                                                                        // Camera position.
-  float  fov;                                                                                        // Camera field of view (degrees).
+  float3 pos;                                                                                       // Camera position.
+  float  fov;                                                                                       // Camera field of view (degrees).
 };
 
 // LIGHT:
 struct Light
 {
-  float4  pos;                                                                                        // Light position.
-  float4  col;                                                                                        // Light color.
-  float amb;                                                                                        // Light ambient intensity.
-  float dif;                                                                                        // Light diffused intensity.
-  float ref;                                                                                        // Light reflected intensity.
+  float3  pos;                                                                                      // Light position.
+  float4  col;                                                                                      // Light color.
 };
 
 // MATERIAL:
 struct Material
 {
-  float3  amb;                                                                                        // Material ambient color.
-  float3  dif;                                                                                        // Material diffused color.
-  float3  ref;                                                                                        // Material reflected color.
-  float shn;                                                                                        // Material shininess.
+  float4  amb;                                                                                      // Material ambient color.
+  float4  dif;                                                                                      // Material diffused color.
+  float4  ref;                                                                                      // Material reflected color.
+  float4  shn;                                                                                      // Material shininess.
+};
+
+// FRAGMENT:
+struct Fragment
+{
+  float4  amb;
+  float4  dif;
+  float4  ref;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -163,85 +168,86 @@ float4 mul(float4* M, float4 V)
   return A;
 }
 
-__kernel void thekernel(__global float4*    fragment_color,                                         // Fragment color.
-                        __global float4*    V_mat,                                                  // View matrix [4x4].
-                        __global float4*    canvas_param,                                           // Canvas [W, H, AR, FOV].
-                        __global float4*    camera_param,                                           // Camera [x, y, z, 1.0f].
-                        __global float4*    light_param,                                            // Light  [x, y, z, 1.0f].
-                        __global float4*    material_param                                          // Material.
+__kernel void thekernel(__global float4*    V_mat,                                                  // View matrix [4x4].
+                        __global float4*    canvas,                                                 // Canvas [W, H, AR, FOV].
+                        __global float4*    light_position,                                         // Light position [x, y, z, 1.0f].
+                        __global float4*    light_color,                                            // Light color [r, g, b, a].
+                        __global float4*    material,                                               // Material.
+                        __global float4*    fragment_color                                          // Fragment color.
                         )
 { 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////// INDICES //////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
-  uint         i = get_global_id(0);                                                                // Global index i [#].
-  uint         j = get_global_id(1);                                                                // Global index j [#].
+  uint            i = get_global_id(0);                                                             // Global index i [#].
+  uint            j = get_global_id(1);                                                             // Global index j [#].
 
-  float        W = canvas_param[0].x;
-  float        H = canvas_param[0].y;
-  float        AR = canvas_param[0].z;
-  float        FOV = canvas_param[0].w;
+  float4          V[4];                                                                             // View matrix.
 
-  float        x = 2.0f*(i/W) - 1.0f;
-  float        y = 2.0f*(j/H) - 1.0f;
+  float           W = canvas[0].x;                                                                  // Window width [px].
+  float           H = canvas[0].y;                                                                  // Window height [px].
+  float           AR = canvas[0].z;                                                                 // Window aspect ratio [].
+  float           FOV = canvas[0].w;                                                                // FOV [degrees].
+  float           x = 2.0f*(i/W) - 1.0f;                                                            // Canvas x-coordinate [-1.0f...+1.0f].
+  float           y = 2.0f*(j/H) - 1.0f;                                                            // Canvas y-coordinate [-1.0f...+1.0f].
 
-  float4       V[4];
-  V[0] = V_mat[0];
-  V[1] = V_mat[1];
-  V[2] = V_mat[2];
-  V[3] = V_mat[3];
+  struct Camera   camera;                                                                           // Camera.
+  struct Light    light;                                                                            // Light.
+  struct Material M;                                                                                // Material.
+  struct Fragment fragment;                                                                         // Fragment.
 
-  struct Camera   camera;
-  struct Light    light;
-
-  camera.pos = camera_param[0];
-  camera.fov = canvas_param[0].w;
-
-  float4       light_pos = light_param[0];                                                          // Light position [x, y, z, w].
-  float4       light_col = light_param[1];                                                          // Light color [r, g, b, ambient].
-  float4       M_amb = material_param[0];
-  float4       M_dif = material_param[1];
-  float4       M_ref = material_param[2];
-  float4       M_shn = material_param[3];
-
-  float4      ray;                                                                                  // Marching ray.
-
-  float       d;                                                                                    // Marching distance.
-  float3      view;                                                                                 // View direction.
-  float3      incident;                                                                             // Incident light direction.
-  float3      reflected;                                                                            // Reflected light direction.
-  float3      halfway;                                                                              // Halfway light direction (Blinn-Phong).
-  float4      ambient;                                                                              // Ambient light color.
-  float4      diffusion;                                                                            // Diffusion light color.
-  float4      reflection;                                                                           // Reflection light color.
-  float3      P;                                                                                    // Scene position.
-  float3      N;                                                                                    // Scene normal direction.
-  float       light_dif;
-  float       light_ref;
-
+  float3          ray;                                                                              // Marching ray.
+  float           d;                                                                                // Marching distance.
+  float3          view;                                                                             // View direction.
+  float3          incident;                                                                         // Incident light direction.
+  float3          reflected;                                                                        // Reflected light direction.
+  float3          halfway;                                                                          // Halfway light direction (Blinn-Phong).
+  float           ambient;                                                                          // Ambient light intensity.
+  float           diffusion;                                                                        // Diffusion light intensity.
+  float           reflection;                                                                       // Reflection light intensity.
+  float3          P;                                                                                // Scene position.
+  float3          N;                                                                                // Scene normal direction.
+  
   // INITIALIZING RAY MARCHING:
-  camera.pos = mul(V, camera.pos);                                                                  // Applying arcball to camera position...
+  V[0] = V_mat[0];                                                                                  // Getting view matrix...
+  V[1] = V_mat[1];                                                                                  // Getting view matrix...
+  V[2] = V_mat[2];                                                                                  // Getting view matrix...
+  V[3] = V_mat[3];                                                                                  // Getting view matrix...
 
-  ray = normalize((float4)(x, y, -1.0f/tan(camera.fov*PI/360.0f), 1.0f));                           // Computing position on canvas (ray intersection on quad)...
-  ray = mul(V, ray);                                                                                // Applying arcball to ray direction...
-  ray = normalize((float4)(ray.xyz, 0.0f));                                            
+  camera.pos = (float3)(0.0f, 0.0f, 0.0f);                                                          // Setting initial camera position...
+  camera.fov = FOV;                                                                                 // Setting camera FOV...
+
+  light.pos = light_position[0].xyz;                                                                // Setting light position...
+  light.col = light_color[0];                                                                       // Setting light color [r, g, b, ambient]...
+
+  M.amb = material[0];                                                                              // Setting material ambient color...
+  M.dif = material[1];                                                                              // Setting material diffusion color...
+  M.ref = material[2];                                                                              // Setting material reflection color...
+  M.shn = material[3];                                                                              // Setting material shininess...
+
+  camera.pos = mul(V, (float4)(camera.pos, 1.0f)).xyz;                                              // Applying arcball to camera position...
+  ray = (x, y, -1.0f/tan(camera.fov*PI/360.0f));                                                    // Computing ray intersection on canvas...
+  ray = mul(V, (float4)(ray, 1.0f)).xyz;                                                            // Applying arcball to ray direction...
+  ray = normalize(ray);                                                                             // Normalizing ray direction...
   
   // COMPUTING RAY MARCHING:
-  d = raymarch(camera.pos.xyz, ray.xyz);                                                            // Computing scene distance...
-  P = camera.pos.xyz + d*ray.xyz;                                                                   // Computing scene position...
+  d = raymarch(camera.pos, ray);                                                            // Computing scene distance...
+  P = camera.pos + d*ray;                                                                   // Computing scene position...
   N = normal(P);                                                                                    // Computing scene normal...
   
   // COMPUTING LIGHTNING:
-  view = normalize(camera.pos.xyz - P);                                                             // Computing view direction...
-  incident = normalize(light_pos.xyz - P);                                                          // Computing incident light direction...
+  view = normalize(camera.pos - P);                                                                 // Computing view direction...
+  incident = normalize(light.pos - P);                                                              // Computing incident light direction...
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
-  light_ref = pow(max(dot(N, halfway), 0.0f), length(M_shn));                                       // Computing light reflection intensity
-  light_dif = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, 10.0f);      // Computing light diffusion intensity... 
-  ambient = light_col.a*M_amb;                                                                      // Computing light ambient color...
-  diffusion = light_dif*M_dif;                                                                      // Computing light diffused color...
-  reflection = light_ref*M_ref;                                                                     // Computing light reflected color...
+  ambient = light.col.a;                                                                            // Computing light ambient color...
+  reflection = pow(max(dot(N, halfway), 0.0f), length(M.shn));                                      // Computing light reflection intensity
+  diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, 10.0f);      // Computing light diffusion intensity... 
+  
+  fragment.amb = (float4)(ambient*light.col.xyz*M.amb.xyz, 0.0f);                                                           // Computing light ambient color...
+  fragment.dif = (float4)(diffusion*light.col.xyz*M.dif.xyz, 0.0f);                                                         // Computing light diffused color...
+  fragment.ref = (float4)(reflection*light.col.xyz*M.ref.xyz, 0.0f);                                                        // Computing light reflected color...
 
-  fragment_color[i + (uint)W*j] = ambient + diffusion + reflection;                                 // Setting output color...
+  fragment_color[i + (uint)W*j] = fragment.amb + fragment.dif + fragment.ref;                       // Setting output color...
   fragment_color[i + (uint)W*j].a = 1.0f;
 }
