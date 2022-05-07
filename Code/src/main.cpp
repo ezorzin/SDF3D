@@ -48,7 +48,7 @@ int main ()
   nu::opengl*         gl             = new nu::opengl (NM, SX, SY, OX, OY, PX, PY, PZ);             // OpenGL context.
   nu::shader*         sh             = new nu::shader ();                                           // OpenGL shader program.
   nu::projection_mode pmode          = nu::MONOCULAR;                                               // OpenGL projection mode.
-  nu::view_mode       vmode          = nu::DIRECT;                                                  // OpenGL VIEW mode.
+  nu::view_mode       vmode          = nu::INVERSE;                                                 // OpenGL VIEW mode.
 
   // OPENCL:
   nu::opencl*         cl             = new nu::opencl (nu::GPU);                                    // OpenCL context.
@@ -79,7 +79,7 @@ int main ()
   V->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});
 
   canvas_param->data.push_back ({800.0f, 800.0f, 800.0f/800.0f, 60.0f});
-  camera_param->data.push_back ({0.0f, 0.2f, 2.0f, 1.0f});
+  camera_param->data.push_back ({0.0f, 0.2f, 1.0f, 1.0f});
   light_param->data.push_back ({5.0f, 5.0f, 0.0f, 1.0f});
   light_param->data.push_back ({0.7f, 0.7f, 0.7f, 0.1f});
   material_param->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});
@@ -114,39 +114,15 @@ int main ()
   {
     cl->get_tic ();                                                                                 // Getting "tic" [us]...
 
-    //V->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8], gl->V_mat[12]};
-    //V->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9], gl->V_mat[13]};
-    //V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
-    //V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
+    V->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8], gl->V_mat[12]};
+    V->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9], gl->V_mat[13]};
+    V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
+    V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
 
-    V_mat[0]   = gl->V_mat[0];
-    V_mat[1]   = gl->V_mat[1];
-    V_mat[2]   = gl->V_mat[2];
-    V_mat[3]   = gl->V_mat[3];
-    V_mat[4]   = gl->V_mat[4];
-    V_mat[5]   = gl->V_mat[5];
-    V_mat[6]   = gl->V_mat[6];
-    V_mat[7]   = gl->V_mat[7];
-    V_mat[8]   = gl->V_mat[8];
-    V_mat[9]   = gl->V_mat[9];
-    V_mat[10]  = gl->V_mat[10];
-    V_mat[11]  = gl->V_mat[11];
-    V_mat[12]  = gl->V_mat[12];
-    V_mat[13]  = gl->V_mat[13];
-    V_mat[14]  = gl->V_mat[14];
-    V_mat[15]  = gl->V_mat[15];
-
-    //inv (Q_mat, V_mat);
-
-    V->data[0] = {V_mat[0], V_mat[4], V_mat[8], V_mat[12]};
-    V->data[1] = {V_mat[1], V_mat[5], V_mat[9], V_mat[13]};
-    V->data[2] = {V_mat[2], V_mat[6], V_mat[10], V_mat[14]};
-    V->data[3] = {V_mat[3], V_mat[7], V_mat[11], V_mat[15]};
-
-    //std::cout << "T0 = " << gl->V_mat[12] << "T1 = " << gl->V_mat[13] << "T2 = " << gl->V_mat[14] <<
-    //  "T3 = " << gl->V_mat[15] << std::endl;
+    std::cout << V->data[0].w << " " << V->data[1].w << " " << V->data[2].w << " " << std::endl;
 
     cl->write (1);
+
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
     cl->execute (K1, nu::WAIT);                                                                     // Executing OpenCL kernel...
     cl->release ();                                                                                 // Releasing OpenCL kernel...

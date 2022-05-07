@@ -42,7 +42,7 @@ struct Material
 float sphereSDF(float3 position)
 {
   float x = 0.0f;                                                                                   // Sphere x-coordinate.
-  float y = 0.4f;                                                                                   // Sphere y-coordinate.
+  float y = 0.0f;                                                                                   // Sphere y-coordinate.
   float z = 0.0f;                                                                                   // Sphere z-coordinate.
   float r = 0.2f;                                                                                   // Sphere radius.
   float3  s = (float3)(x, y, z);                                                                          // Sphere position.
@@ -224,7 +224,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   //printf("%f\n", camera.w);
 
-  ray = (float4)(x*AR, y, -2.0f/tan(FOV*PI/360.0f), 1.0f);                                          // Computing position on canvas (ray intersection on quad)...
+  ray = normalize((float4)(x, y, -1.0f/tan(FOV*PI/360.0f), 1.0f));                                  // Computing position on canvas (ray intersection on quad)...
   ray_x = dot(V_0, ray);                                                                            // Applying arcball to ray direction...
   ray_y = dot(V_1, ray);                                                                            // Applying arcball to ray direction...
   ray_z = dot(V_2, ray);                                                                            // Applying arcball to ray direction...
