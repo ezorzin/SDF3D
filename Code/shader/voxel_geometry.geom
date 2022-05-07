@@ -3,6 +3,12 @@
 
 layout (points) in;                                                             // Input points.
 layout (triangle_strip, max_vertices = 4) out;                                  // Output points.
+
+layout(std430, binding = 0) buffer voxel_color
+{
+  vec4 color_SSBO[800*800];                                                            // Voxel color SSBO.
+};
+
 out vec2 quad;                                                                  // Billboard quad UV coordinates.
 
 void main()

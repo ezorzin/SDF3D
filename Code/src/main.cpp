@@ -53,25 +53,33 @@ int main ()
   // OPENCL:
   nu::opencl*         cl                  = new nu::opencl (nu::GPU);                               // OpenCL context.
   nu::kernel*         K1                  = new nu::kernel ();                                      // OpenCL kernel array.
-  nu::float4*         V                   = new nu::float4 (0);                                     // View matrix [4x4].
-  nu::float4*         canvas              = new nu::float4 (1);                                     // Canvas parameters [W, H, AR, FOV].
-  nu::float4*         light_position      = new nu::float4 (2);                                     // Light position [x, y, z, k].
-  nu::float4*         light_color         = new nu::float4 (3);                                     // Light color [r, g, b, ambient].
-  nu::float4*         ball_position       = new nu::float4 (4);                                     // Ball position [x, y, z, radius].
-  nu::float4*         material_ambient    = new nu::float4 (5);                                     // Material ambient color [r, g, b, transparency].
-  nu::float4*         material_diffusion  = new nu::float4 (6);                                     // Material diffusion color [r, g, b, n_index].
-  nu::float4*         material_reflection = new nu::float4 (7);                                     // Material reflection color [r, g, b, shininess].
-  nu::float4*         fragment_color      = new nu::float4 (8);                                     // Color [r, g, b, a].
+  nu::float4*         fragment_color      = new nu::float4 (0);                                     // Color [r, g, b, a].
+  nu::float4*         center              = new nu::float4 (1);                                     // Center point.
+  nu::float4*         view_matrix         = new nu::float4 (2);                                     // View matrix [4x4].
+  nu::float4*         canvas              = new nu::float4 (3);                                     // Canvas parameters [W, H, AR, FOV].
+  nu::float4*         light_position      = new nu::float4 (4);                                     // Light position [x, y, z, k].
+  nu::float4*         light_color         = new nu::float4 (5);                                     // Light color [r, g, b, ambient].
+  nu::float4*         ball_position       = new nu::float4 (6);                                     // Ball position [x, y, z, radius].
+  nu::float4*         material_ambient    = new nu::float4 (7);                                     // Material ambient color [r, g, b, transparency].
+  nu::float4*         material_diffusion  = new nu::float4 (8);                                     // Material diffusion color [r, g, b, n_index].
+  nu::float4*         material_reflection = new nu::float4 (9);                                     // Material reflection color [r, g, b, shininess].
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////// DATA INITIALIZATION //////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   int                 i;
 
-  V->data.push_back ({1.0f, 0.0f, 0.0f, 0.0f});                                                     // Initializing view matrix...
-  V->data.push_back ({0.0f, 1.0f, 0.0f, 0.0f});                                                     // Initializing view matrix...
-  V->data.push_back ({0.0f, 0.0f, 1.0f, 0.0f});                                                     // Initializing view matrix...
-  V->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                                     // Initializing view matrix...
+  for(i = 0; i < (800*800); i++)
+  {
+    fragment_color->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                      // Initializing fragment color...
+  }
+
+  center->data.push_back ({1.0f, 0.0f, 0.0f, 0.0f});
+
+  view_matrix->data.push_back ({1.0f, 0.0f, 0.0f, 0.0f});                                           // Initializing view matrix...
+  view_matrix->data.push_back ({0.0f, 1.0f, 0.0f, 0.0f});                                           // Initializing view matrix...
+  view_matrix->data.push_back ({0.0f, 0.0f, 1.0f, 0.0f});                                           // Initializing view matrix...
+  view_matrix->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                           // Initializing view matrix...
 
   canvas->data.push_back ({800.0f, 800.0f, 800.0f/600.0f, 60.0f});                                  // Initializing canvas parameters [W, H, AR, FOV]...
   light_position->data.push_back ({5.0f, 5.0f, 0.0f, 10.0f});                                       // Initializing light position [x, y, z, k]...
@@ -80,11 +88,6 @@ int main ()
   material_ambient->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});                                      // Initializing material ambient color [r, g, b, transparency]...
   material_diffusion->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});                                    // Initializing material diffusion color [r, g, b, n_index]...
   material_reflection->data.push_back ({0.5f, 0.5f, 0.5f, 12.0f});                                  // Initializing material reflection color [r, g, b, shininess]...
-
-  for(i = 0; i < (800*800); i++)
-  {
-    fragment_color->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                      // Initializing fragment color...
-  }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////// OPENCL KERNELS INITIALIZATION /////////////////////////////////
@@ -113,12 +116,12 @@ int main ()
   {
     cl->get_tic ();                                                                                 // Getting "tic" [us]...
 
-    V->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8], gl->V_mat[12]};
-    V->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9], gl->V_mat[13]};
-    V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
-    V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
+    view_matrix->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8],  gl->V_mat[12]};
+    view_matrix->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9],  gl->V_mat[13]};
+    view_matrix->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
+    view_matrix->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
 
-    cl->write (0);
+    cl->write (2);
 
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
     cl->execute (K1, nu::WAIT);                                                                     // Executing OpenCL kernel...
@@ -141,7 +144,9 @@ int main ()
   delete gl;                                                                                        // Deleting OpenGL context...
   delete sh;                                                                                        // Deleting shader...
   delete K1;
-  delete V;
+  delete fragment_color;
+  delete center;
+  delete view_matrix;
   delete canvas;
   delete light_position;
   delete light_color;                                                                               // Deleting color data...
@@ -149,7 +154,6 @@ int main ()
   delete material_ambient;
   delete material_diffusion;
   delete material_reflection;
-  delete fragment_color;
 
   return 0;
 }
