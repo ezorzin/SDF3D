@@ -13,15 +13,15 @@
 // CAMERA:
 struct Camera
 {
-  float3 pos;                                                                                        // Camera position.
+  float4 pos;                                                                                        // Camera position.
   float  fov;                                                                                        // Camera field of view (degrees).
 };
 
 // LIGHT:
 struct Light
 {
-  float3  pos;                                                                                        // Light position.
-  float3  col;                                                                                        // Light color.
+  float4  pos;                                                                                        // Light position.
+  float4  col;                                                                                        // Light color.
   float amb;                                                                                        // Light ambient intensity.
   float dif;                                                                                        // Light diffused intensity.
   float ref;                                                                                        // Light reflected intensity.
@@ -151,8 +151,20 @@ float3 reflect(float3 I, float3 N)
   return reflect;
 }
 
+float4 mul(float4* M, float4 V)
+{
+  float4 A;
+
+  A.x = dot(M[0], V);
+  A.y = dot(M[1], V);
+  A.z = dot(M[2], V);
+  A.w = dot(M[3], V);
+
+  return A;
+}
+
 __kernel void thekernel(__global float4*    fragment_color,                                         // Fragment color.
-                        __global float4*    V,                                                      // View matrix [4x4].
+                        __global float4*    V_mat,                                                  // View matrix [4x4].
                         __global float4*    canvas_param,                                           // Canvas [W, H, AR, FOV].
                         __global float4*    camera_param,                                           // Camera [x, y, z, 1.0f].
                         __global float4*    light_param,                                            // Light  [x, y, z, 1.0f].
@@ -173,31 +185,26 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float        x = 2.0f*(i/W) - 1.0f;
   float        y = 2.0f*(j/H) - 1.0f;
 
-  float4       V_0 = V[0];
-  float4       V_1 = V[1];
-  float4       V_2 = V[2];
-  float4       V_3 = V[3];
+  float4       V[4];
+  V[0] = V_mat[0];
+  V[1] = V_mat[1];
+  V[2] = V_mat[2];
+  V[3] = V_mat[3];
 
-  float4       camera  = camera_param[0];
-  float        camera_x;
-  float        camera_y;
-  float        camera_z;
-  float        camera_w;
+  struct Camera   camera;
+  struct Light    light;
 
-  float4       camera_pos = camera_param[0];                                                        // Camera position [x, y, z, w].
+  camera.pos = camera_param[0];
+  camera.fov = canvas_param[0].w;
+
   float4       light_pos = light_param[0];                                                          // Light position [x, y, z, w].
   float4       light_col = light_param[1];                                                          // Light color [r, g, b, ambient].
   float4       M_amb = material_param[0];
   float4       M_dif = material_param[1];
   float4       M_ref = material_param[2];
   float4       M_shn = material_param[3];
-  
 
   float4      ray;                                                                                  // Marching ray.
-  float       ray_x;
-  float       ray_y;
-  float       ray_z;
-  float       ray_w;
 
   float       d;                                                                                    // Marching distance.
   float3      view;                                                                                 // View direction.
@@ -213,31 +220,19 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float       light_ref;
 
   // INITIALIZING RAY MARCHING:
-  camera_x = dot(V_0, camera);                                                                      // Applying arcball to camera position...
-  camera_y = dot(V_1, camera);                                                                      // Applying arcball to camera position...
-  camera_z = dot(V_2, camera);                                                                      // Applying arcball to camera position...
-  camera_w = dot(V_3, camera);                                                                      // Applying arcball to camera position...
-  camera.x = camera_x;
-  camera.y = camera_y;
-  camera.z = camera_z;
-  camera.w = camera_w;                                  
+  camera.pos = mul(V, camera.pos);                                                                  // Applying arcball to camera position...
 
-  //printf("%f\n", camera.w);
-
-  ray = normalize((float4)(x, y, -1.0f/tan(FOV*PI/360.0f), 1.0f));                                  // Computing position on canvas (ray intersection on quad)...
-  ray_x = dot(V_0, ray);                                                                            // Applying arcball to ray direction...
-  ray_y = dot(V_1, ray);                                                                            // Applying arcball to ray direction...
-  ray_z = dot(V_2, ray);                                                                            // Applying arcball to ray direction...
-  ray_w = dot(V_3, ray);                                                                            // Applying arcball to ray direction...
-  ray = normalize((float4)(ray_x, ray_y, ray_z, 0.0f));                                            
+  ray = normalize((float4)(x, y, -1.0f/tan(camera.fov*PI/360.0f), 1.0f));                           // Computing position on canvas (ray intersection on quad)...
+  ray = mul(V, ray);                                                                                // Applying arcball to ray direction...
+  ray = normalize((float4)(ray.xyz, 0.0f));                                            
   
   // COMPUTING RAY MARCHING:
-  d = raymarch(camera_pos.xyz, ray.xyz);                                                            // Computing scene distance...
-  P = camera_pos.xyz + d*ray.xyz;                                                                   // Computing scene position...
+  d = raymarch(camera.pos.xyz, ray.xyz);                                                            // Computing scene distance...
+  P = camera.pos.xyz + d*ray.xyz;                                                                   // Computing scene position...
   N = normal(P);                                                                                    // Computing scene normal...
   
   // COMPUTING LIGHTNING:
-  view = normalize(camera_pos.xyz - P);                                                             // Computing view direction...
+  view = normalize(camera.pos.xyz - P);                                                             // Computing view direction...
   incident = normalize(light_pos.xyz - P);                                                          // Computing incident light direction...
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...

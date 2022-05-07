@@ -119,8 +119,6 @@ int main ()
     V->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
     V->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
 
-    std::cout << V->data[0].w << " " << V->data[1].w << " " << V->data[2].w << " " << std::endl;
-
     cl->write (1);
 
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
