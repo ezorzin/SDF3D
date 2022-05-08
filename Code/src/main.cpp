@@ -1,8 +1,8 @@
 /// @file
 
 #define INTEROP       true                                                                          // "true" = use OpenGL-OpenCL interoperability.
-#define SX            800                                                                           // Window x-size [px].
-#define SY            800                                                                           // Window y-size [px].
+#define SX            1024                                                                          // Window x-size [px].
+#define SY            768                                                                           // Window y-size [px].
 #define NM            "Neutrino - 3D signed distance field"                                         // Window name.
 #define OX            0.0f                                                                          // x-axis orbit initial rotation.
 #define OY            0.0f                                                                          // y-axis orbit initial rotation.
@@ -69,7 +69,7 @@ int main ()
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   int                 i;
 
-  for(i = 0; i < (800*800); i++)
+  for(i = 0; i < (SX*SY); i++)
   {
     fragment_color->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});                                      // Initializing fragment color...
   }
@@ -123,7 +123,10 @@ int main ()
     view_matrix->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
     view_matrix->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
 
+    canvas->data[0]      = {float(SX), float(SY), gl->aspect_ratio, 60.0f};
+
     cl->write (2);
+    cl->write (3);
 
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
     cl->execute (K1, nu::WAIT);                                                                     // Executing OpenCL kernel...
