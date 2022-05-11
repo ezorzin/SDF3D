@@ -56,6 +56,13 @@ struct Fragment
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// OBJECT'S SIGNED DISTANCE FIELDS IMPLICIT FUNCTIONS /////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
+float4 objectSDF(uint object_type, float float3 ray, struct Ball ball)
+{
+  float sdf = length(ray - ball.pos) - ball.rad;                                                    // Signed distance field.
+ 
+  return (float4)(ball.col, sdf);                                                                   // Returning signed distance field...
+}
+
 float4 sphereSDF(float3 ray, struct Ball ball)
 {
   float sdf = length(ray - ball.pos) - ball.rad;                                                    // Signed distance field.
