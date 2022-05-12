@@ -37,12 +37,7 @@ struct Ball
 // MATERIAL:
 struct Material
 {
-  float3  amb;                                                                                      // Material ambient color.
-  float3  dif;                                                                                      // Material diffused color.
-  float3  ref;                                                                                      // Material reflected color.
-  float   t;                                                                                        // Material transparency.
-  float   n;                                                                                        // Material index of refraction.
-  float   s;                                                                                        // Material shininess.
+  
 };
 
 // FRAGMENT:
@@ -53,42 +48,66 @@ struct Fragment
   float3  ref;
 };
 
+enum ObjectType
+{
+  PLANE = 0,
+  SPHERE = 1
+}; 
+
+// COLOR-SDF:
+struct ColorSDF
+{
+  float4  amb_t;                                                                                    // Material (ambient color, transparency).
+  float4  dif_s;                                                                                    // Material (diffused color, shininess).
+  float4  ref_n;                                                                                    // Material (reflected color, index of refraction).
+  float   sdf;                                                                                      // Signed distance field.
+};
+
+float4 mul(float16 M, float4 V)
+{
+  float4 A;
+
+  A.x = M.s0*V.x + M.s1*V.y + M.s2*V.z + M.s3*V.w;
+  A.y = M.s4*V.x + M.s5*V.y + M.s6*V.z + M.s7*V.w;
+  A.z = M.s8*V.x + M.s9*V.y + M.sA*V.z + M.sB*V.w;
+  A.w = M.sC*V.x + M.sD*V.y + M.sE*V.z + M.sF*V.w;
+
+  return A;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// OBJECT'S SIGNED DISTANCE FIELDS IMPLICIT FUNCTIONS /////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-float4 objectSDF(uint object_type, float float3 ray, struct Ball ball)
+struct ColorSDF objectSDF(enum ObjectType type, float4 pos, struct ColorSDF cSDF, float param[], float16 M, float3 ray)
 {
-  float sdf = length(ray - ball.pos) - ball.rad;                                                    // Signed distance field.
+  pos = mul(M, pos);                                                                                // Setting object position and orientation...
+
+  switch (type)
+  {
+    case PLANE:
+      cSDF.sdf = ray.y;                                                                             // Computing sdf...
+      break;
+
+    case SPHERE:
+      cSDF.sdf = length(ray - pos.xyz) - param[0];                                                  // Computing sdf...
+      break;
+  }
  
-  return (float4)(ball.col, sdf);                                                                   // Returning signed distance field...
+  return cSDF;                                                                                      // Returning (color, sdf)...
 }
 
-float4 sphereSDF(float3 ray, struct Ball ball)
+struct ColorSDF unionSDF(struct ColorSDF a, struct ColorSDF b)
 {
-  float sdf = length(ray - ball.pos) - ball.rad;                                                    // Signed distance field.
- 
-  return (float4)(ball.col, sdf);                                                                   // Returning signed distance field...
+  return a.sdf < b.sdf? a : b;
 }
 
-float4 planeSDF(float3 ray)
-{
-  float sdf = ray.y;                                                                                // Signed distance field.
- 
-  return (float4)(0.0f, 0.0f, 1.0f, sdf);                                                           // Returning signed distance field...
-}
 
-float4 unionSDF(float4 a, float4 b)
-{
-  return a.w < b.w? a : b;
-}
 
 float4 sceneSDF(float3 ray, struct Ball ball[], int n)
 {
   float sdf = INF;                                                                                  // Signed distance field.
   float4 color_sdf = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
   int i;
-
-  color_sdf = min(sdf, planeSDF(ray));                                                              // Computing signed distance field...
   
   for (i = 0; i < n; i++)
   {
@@ -102,28 +121,28 @@ float4 sceneSDF(float3 ray, struct Ball ball[], int n)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////// RAY MARCHING ////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-float4 raymarch(float3 position, float3 direction, struct Ball ball[], int n)
+struct ColorSDF raymarch(float3 position, float3 direction, struct ColorSDF cSDF)
 {
-  float   distance = 0.0f;                                                                          // Marching distance.
-  float4  color_sdf;                                                                                // Signed distance field.
-  float3  color;
-  int     i;                                                                                        // Step index.
-  float3  ray;                                                                                      // Marching ray.
+  float             distance = 0.0f;                                                                // Marching distance.
+  struct ColorSDF   cSDF_scene;                                                                     // Scene (color, sdf).
+  int               i;                                                                              // Step index.
+  float3            ray;                                                                            // Marching ray.
 
   for (i = 0; i < MAX_STEPS; i++)
   {
     ray = position + distance*direction;                                                            // Computing marching ray...    
-    color_sdf = sceneSDF(ray, ball, n);                                                             // Computing scene distance field...
-    distance += color_sdf.w;                                                                        // Updating marching distance...
+    distance += cSDF.sdf;                                                                           // Updating marching distance...
 
-    if(distance > MAX_DISTANCE || color_sdf.w < EPSILON)                                            // Checking numeric precision constraints...
+    if(distance > MAX_DISTANCE || cSDF.sdf < EPSILON)                                               // Checking numeric precision constraints...
     {
-      color = color_sdf.xyz;
+      cSDF_scene = cSDF;
       break;
     }
   }
 
-  return (float4)(color, distance);                                                                 // Returning final marching distance...
+  cSDF_scene.sdf = distance;                                                                        // Setting scene sdf...
+
+  return cSDF_scene;                                                                                // Returning scene (color, sdf)...
 }
 
 float shadow(float3 position, float3 direction, struct Ball ball[], int n, struct Light light)
@@ -206,18 +225,6 @@ float3 refract(float3 I, float3 N, float n1, float n2)
   }
         
   return refract;  
-}
-
-float4 mul(float4* M, float4 V)
-{
-  float4 A;
-
-  A.x = dot(M[0], V);
-  A.y = dot(M[1], V);
-  A.z = dot(M[2], V);
-  A.w = dot(M[3], V);
-
-  return A;
 }
 
 __kernel void thekernel(__global float4*    fragment_color,                                         // Fragment color.
