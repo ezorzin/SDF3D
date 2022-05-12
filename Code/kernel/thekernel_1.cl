@@ -78,18 +78,25 @@ float4 mul(float16 M, float4 V)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// OBJECT'S SIGNED DISTANCE FIELDS IMPLICIT FUNCTIONS /////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ColorSDF objectSDF(enum ObjectType type, float4 pos, struct ColorSDF cSDF, float param[], float16 M, float3 ray)
+struct ColorSDF objectSDF (
+                          enum ObjectType type,                                                     // Object type.
+                          float16 T,                                                                // Transformation matrix.
+                          struct ColorSDF cSDF,                                                     // (color, sdf).
+                          float param[],                                                            // Object parameters.
+                          float3 ray                                                                // Marching ray.
+                          )
 {
-  pos = mul(M, pos);                                                                                // Setting object position and orientation...
+  ray = mul(T, (float4)(ray, 1.0f)).xyz;                                                            // Applying transformation matrix...
 
   switch (type)
   {
     case PLANE:
-      cSDF.sdf = ray.y;                                                                             // Computing sdf...
+      cSDF.sdf = dot(ray, (float3)(0.0f, 0.0f, 1.0f));                                              // Computing sdf...
       break;
 
     case SPHERE:
-      cSDF.sdf = length(ray - pos.xyz) - param[0];                                                  // Computing sdf...
+      // param[0] = radius
+      cSDF.sdf = length(ray) - param[0];                                                            // Computing sdf...
       break;
   }
  
@@ -233,6 +240,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
                         __global float4*    canvas,                                                 // Canvas [W, H, AR, FOV].
                         __global float4*    light_position,                                         // Light position [x, y, z, k].
                         __global float4*    light_color,                                            // Light color [r, g, b, ambient].
+                        __global int*       object_type,                                            // Object type.
+                        __global float4*    object_position,                                        // Object position                     
                         __global float4*    ball_position,                                          // Ball position [x, y, z, radius].
                         __global float4*    material_ambient,                                       // Material ambient color [r, g, b, transparency].
                         __global float4*    material_diffusion,                                     // Material diffusion color [r, g, b, n_index].
@@ -243,7 +252,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   uint            j = get_global_id(1);                                                             // Global index j [#].
   uint            k;
 
-  float4          V[4];                                                                             // View matrix.
+  float16         M;                                                                                // View matrix.
 
   float           W = canvas[0].x;                                                                  // Window width [px].
   float           H = canvas[0].y;                                                                  // Window height [px].
@@ -273,10 +282,10 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
 
   // INITIALIZING RAY MARCHING:
-  V[0] = view_matrix[0];                                                                            // Getting view matrix...
-  V[1] = view_matrix[1];                                                                            // Getting view matrix...
-  V[2] = view_matrix[2];                                                                            // Getting view matrix...
-  V[3] = view_matrix[3];                                                                            // Getting view matrix...
+  M.s0123 = view_matrix[0];                                                                         // Getting view matrix...
+  M.s4567 = view_matrix[1];                                                                         // Getting view matrix...
+  M.s89AB = view_matrix[2];                                                                         // Getting view matrix...
+  M.sCDEF = view_matrix[3];                                                                         // Getting view matrix...
 
   camera.pos = (float3)(0.0f, 0.2f, 2.0f);                                                          // Setting initial camera position...
   camera.fov = FOV;                                                                                 // Setting camera FOV...
@@ -286,7 +295,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   light.amb = light_color[0].w;                                                                     // Setting light ambient intensity [ambient]...
   light.k   = light_position[0].w;                                                                  // Setting light sharpness [k]...
 
-  for (k = 0; k < 3; k++)
+  for (k = 0; k < num_objects; k++)
   {
     ball[k].pos = ball_position[k].xyz;                                                             // Setting ball position [x, y, z]...
     ball[k].col = material_ambient[k].xyz;
