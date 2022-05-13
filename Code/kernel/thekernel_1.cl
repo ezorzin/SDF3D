@@ -334,8 +334,6 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   uint            k;
   uint            offset = 0;
 
-  uint num_objects; // EZOR: to be defined in kernel arguments.
-
   float16         V;                                                                                // View matrix.
 
   float           W = canvas[0].x;                                                                  // Window width [px].
