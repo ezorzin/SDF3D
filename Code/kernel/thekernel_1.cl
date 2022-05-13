@@ -26,20 +26,6 @@ struct Light
   float   k;                                                                                        // Light sharpness.
 };
 
-// BALL:
-struct Ball
-{
-  float3  pos;                                                                                      // Ball position.
-  float3  col;                                                                                      // Ball color.
-  float   rad;                                                                                      // Ball radius.
-};
-
-// MATERIAL:
-struct Material
-{
-  
-};
-
 // FRAGMENT:
 struct Fragment
 {
@@ -50,16 +36,20 @@ struct Fragment
 
 enum ObjectType
 {
-  PLANE = 0,
-  SPHERE = 1
+  SCENE = 0,
+  PLANE = 1,
+  SPHERE = 2
 }; 
 
-// COLOR-SDF:
-struct ColorSDF
+// Object:
+struct Object
 {
-  float4  amb_t;                                                                                    // Material (ambient color, transparency).
-  float4  dif_s;                                                                                    // Material (diffused color, shininess).
-  float4  ref_n;                                                                                    // Material (reflected color, index of refraction).
+  int     type;                                                                                     // Object type.
+  float16 T;                                                                                        // Object transformation matrix.
+  float4  par;                                                                                      // Object parameters.
+  float4  amb;                                                                                      // Object (ambient color, transparency).
+  float4  dif;                                                                                      // Object (diffused color, shininess).
+  float4  ref;                                                                                      // Object (reflected color, index of refraction).
   float   sdf;                                                                                      // Signed distance field.
 };
 
@@ -78,93 +68,58 @@ float4 mul(float16 M, float4 V)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// OBJECT'S SIGNED DISTANCE FIELDS IMPLICIT FUNCTIONS /////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ColorSDF objectSDF (
-                          enum ObjectType type,                                                     // Object type.
-                          float16 T,                                                                // Transformation matrix.
-                          struct ColorSDF cSDF,                                                     // (color, sdf).
-                          float param[],                                                            // Object parameters.
-                          float3 ray                                                                // Marching ray.
-                          )
+struct Object objectSDF (struct Object object, float3 ray)
 {
-  ray = mul(T, (float4)(ray, 1.0f)).xyz;                                                            // Applying transformation matrix...
+  ray = mul(object.T, (float4)(ray, 1.0f)).xyz;                                                     // Applying transformation matrix...
 
-  switch (type)
+  switch (object.type)
   {
+    case SCENE:
+      object.sdf = INF;
+
     case PLANE:
-      cSDF.sdf = dot(ray, (float3)(0.0f, 0.0f, 1.0f));                                              // Computing sdf...
+      object.sdf = dot(ray, (float3)(0.0f, 0.0f, 1.0f));                                            // Computing sdf...
       break;
 
     case SPHERE:
-      // param[0] = radius.
-      cSDF.sdf = length(ray) - param[0];                                                            // Computing sdf...
+      // parameter.x = radius.
+      object.sdf = length(ray) - object.par.x;                                                      // Computing sdf...
       break;
   }
  
-  return cSDF;                                                                                      // Returning (color, sdf)...
+  return object;                                                                                    // Returning object...
 }
 
-struct ColorSDF unionSDF(struct ColorSDF a, struct ColorSDF b)
+struct Object unionSDF(struct Object a, struct Object b)
 {
   return a.sdf < b.sdf? a : b;
-}
-
-struct ObjectParameters GetParam  (
-                                  enum ObjectType type                                              // Object type.
-                                  )
-{
-  switch (type)
-  {
-    case PLANE:
-      cSDF.sdf = dot(ray, (float3)(0.0f, 0.0f, 1.0f));                                              // Computing sdf...
-      break;
-
-    case SPHERE:
-      // param[0] = radius.
-      cSDF.sdf = length(ray) - param[0];                                                            // Computing sdf...
-      break;
-  }
-}
-
-float4 sceneSDF(float3 ray, struct Ball ball[], int n)
-{
-  float sdf = INF;                                                                                  // Signed distance field.
-  float4 color_sdf = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
-  int i;
-  
-  for (i = 0; i < n; i++)
-  {
-    //color_sdf = min(sdf, sphereSDF(ray, ball[i]));                                                  // Computing signed distance field...
-    color_sdf = unionSDF(color_sdf, sphereSDF(ray, ball[i]));
-  }
-
-  return color_sdf;                                                                                 // Returning signed distance field...
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////// RAY MARCHING ////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ColorSDF raymarch(float3 position, float3 direction, struct ColorSDF cSDF)
+struct Object raymarch(float3 position, float3 direction, struct Object object)
 {
   float             distance = 0.0f;                                                                // Marching distance.
-  struct ColorSDF   cSDF_scene;                                                                     // Scene (color, sdf).
+  struct Object     scene;                                                                          // Scene.
   int               i;                                                                              // Step index.
   float3            ray;                                                                            // Marching ray.
 
   for (i = 0; i < MAX_STEPS; i++)
   {
     ray = position + distance*direction;                                                            // Computing marching ray...    
-    distance += cSDF.sdf;                                                                           // Updating marching distance...
+    distance += object.sdf;                                                                         // Updating marching distance...
 
-    if(distance > MAX_DISTANCE || cSDF.sdf < EPSILON)                                               // Checking numeric precision constraints...
+    if(distance > MAX_DISTANCE || object.sdf < EPSILON)                                             // Checking numeric precision constraints...
     {
-      cSDF_scene = cSDF;
+      scene = object;
       break;
     }
   }
 
-  cSDF_scene.sdf = distance;                                                                        // Setting scene sdf...
+  scene.sdf = distance;                                                                             // Setting scene sdf...
 
-  return cSDF_scene;                                                                                // Returning scene (color, sdf)...
+  return scene;                                                                                     // Returning scene (color, sdf)...
 }
 
 float shadow(float3 position, float3 direction, struct Ball ball[], int n, struct Light light)
@@ -260,8 +215,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
                         __global float4*    object_ambient,                                         // Object ambient color [r, g, b, transparency].
                         __global float4*    object_diffusion,                                       // Object diffusion color [r, g, b, n_index].
                         __global float4*    object_reflection,                                      // Object reflection color [r, g, b, shininess].
-                        __global float*     object_parameter,                                       // Object parameters.
-                        __global int*       object_offset                                           // Object parameter index.
+                        __global float4*    object_parameter                                        // Object parameters.
                         )
 { 
   uint            i = get_global_id(0);                                                             // Global index i [#].
@@ -283,12 +237,10 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   struct Camera   camera;                                                                           // Camera.
   struct Light    light;                                                                            // Light.
-  struct ColorSDF cSDF;                                                                             // (color, sdf).
+  struct Object   object;                                                                           // Object.
+  struct Object   scene;                                                                            // Scene.
   struct Fragment fragment;                                                                         // Fragment.
-  float  param[10];
 
-  uint            type;
-  uint            num_param;
   float3          ray;                                                                              // Marching ray.
   float4          col_d;                                                                            // Marching distance.
   float3          view;                                                                             // View direction.
@@ -301,7 +253,6 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float           reflection;                                                                       // Reflection light intensity.
   float3          P;                                                                                // Scene position.
   float3          N;                                                                                // Scene normal direction.
-
 
   // INITIALIZING RAY MARCHING:
   M = view_matrix[0];                                                                               // Getting view matrix...
@@ -319,39 +270,24 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   ray = mul(M, (float4)(ray, 1.0f)).xyz;                                                            // Applying arcball to ray direction...
   ray = normalize(ray);                                                                             // Normalizing ray direction...
 
+  scene.type = 0;                                                                                   // Setting object type...
+  scene.T = 0.0f;                                                                                   // Setting object transformation matrix...
+  scene.par = 0.0f;                                                                                 // Setting object parameters...
+  scene.amb = 0.0f;                                                                                 // Setting object ambient color...
+  scene.dif = 0.0f;                                                                                 // Setting object diffusion color...
+  scene.ref = 0.0f;                                                                                 // Setting object reflection color...
+
   for (k = 0; k < num_objects; k++)
   {
-  // COMPUTING STRIDE MINIMUM INDEX:
-  if (k == 0)
-  {
-    j_min = 0;                                                                  // Setting stride minimum (first stride)...
-  }
-  else
-  {
-    j_min = offset[i - 1];                                                      // Setting stride minimum (all others)...
-  }
+    object.type = object_type[k];                                                                   // Getting object type...
+    object.T = object_transformation[k];                                                            // Getting object transformation matrix...
+    object.par = object_parameter[k];                                                               // Getting object parameters...
+    object.amb = object_ambient[k];                                                                 // Getting object ambient color...
+    object.dif = object_diffusion[k];                                                               // Getting object diffusion color...
+    object.ref = object_reflection[k];                                                              // Getting object reflection color...
 
-  j_max = object_offset[k];                                               // Neighbour stride maximum index.
-
-  i = 0;
-
-  for(j = j_min; j < j_max; j++)
-  {
-    param[i] = object_parameter[j];
-    i++;
-  }
-    
-
-    cSDF.amb_t = object_ambient[k];                                                                 // Setting object ambient color...
-    cSDF.dif_s = object_diffusion[k];                                                               // Setting object diffusion color...
-    cSDF.ref_n = object_reflection[k];                                                              // Setting object reflection color...
-
-    T = object_transformation[k];                                                                   // Getting transformation matrix.
-    type = object_type[k];                                                                          // Getting object type.
-
-    offset = object_offset[k];
-
-    cSDF = objectSDF (type, T, cSDF, param, ray);
+    object = objectSDF (object, ray);                                                               // Computing object sdf...
+    scene = unionSDF(scene, object);                                                                // Assembling scene...
   }
 
 
