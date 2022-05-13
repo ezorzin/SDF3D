@@ -95,7 +95,7 @@ struct ColorSDF objectSDF (
       break;
 
     case SPHERE:
-      // param[0] = radius
+      // param[0] = radius.
       cSDF.sdf = length(ray) - param[0];                                                            // Computing sdf...
       break;
   }
@@ -108,7 +108,22 @@ struct ColorSDF unionSDF(struct ColorSDF a, struct ColorSDF b)
   return a.sdf < b.sdf? a : b;
 }
 
+struct ObjectParameters GetParam  (
+                                  enum ObjectType type                                              // Object type.
+                                  )
+{
+  switch (type)
+  {
+    case PLANE:
+      cSDF.sdf = dot(ray, (float3)(0.0f, 0.0f, 1.0f));                                              // Computing sdf...
+      break;
 
+    case SPHERE:
+      // param[0] = radius.
+      cSDF.sdf = length(ray) - param[0];                                                            // Computing sdf...
+      break;
+  }
+}
 
 float4 sceneSDF(float3 ray, struct Ball ball[], int n)
 {
@@ -236,23 +251,28 @@ float3 refract(float3 I, float3 N, float n1, float n2)
 
 __kernel void thekernel(__global float4*    fragment_color,                                         // Fragment color.
                         __global float4*    center,
-                        __global float4*    view_matrix,                                            // View matrix [4x4].
+                        __global float16*   view_matrix,                                            // View matrix [4x4].
                         __global float4*    canvas,                                                 // Canvas [W, H, AR, FOV].
                         __global float4*    light_position,                                         // Light position [x, y, z, k].
                         __global float4*    light_color,                                            // Light color [r, g, b, ambient].
                         __global int*       object_type,                                            // Object type.
-                        __global float4*    object_position,                                        // Object position                     
-                        __global float4*    ball_position,                                          // Ball position [x, y, z, radius].
-                        __global float4*    material_ambient,                                       // Material ambient color [r, g, b, transparency].
-                        __global float4*    material_diffusion,                                     // Material diffusion color [r, g, b, n_index].
-                        __global float4*    material_reflection                                     // Material reflection color [r, g, b, shininess].
+                        __global float16*   object_transformation,                                  // Object transformation matrix.                     
+                        __global float4*    object_ambient,                                         // Object ambient color [r, g, b, transparency].
+                        __global float4*    object_diffusion,                                       // Object diffusion color [r, g, b, n_index].
+                        __global float4*    object_reflection,                                      // Object reflection color [r, g, b, shininess].
+                        __global float*     object_parameter,                                       // Object parameters.
+                        __global int*       object_offset                                           // Object parameter index.
                         )
 { 
   uint            i = get_global_id(0);                                                             // Global index i [#].
   uint            j = get_global_id(1);                                                             // Global index j [#].
   uint            k;
+  uint            offset = 0;
+
+  uint num_objects; // EZOR: to be defined in kernel arguments.
 
   float16         M;                                                                                // View matrix.
+  float16         T;                                                                                // Tranformation matrix.
 
   float           W = canvas[0].x;                                                                  // Window width [px].
   float           H = canvas[0].y;                                                                  // Window height [px].
@@ -263,10 +283,12 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   struct Camera   camera;                                                                           // Camera.
   struct Light    light;                                                                            // Light.
-  struct Ball     ball[3];                                                                             // Ball.
-  struct Material material;                                                                         // Material.
+  struct ColorSDF cSDF;                                                                             // (color, sdf).
   struct Fragment fragment;                                                                         // Fragment.
+  float  param[10];
 
+  uint            type;
+  uint            num_param;
   float3          ray;                                                                              // Marching ray.
   float4          col_d;                                                                            // Marching distance.
   float3          view;                                                                             // View direction.
@@ -282,12 +304,10 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
 
   // INITIALIZING RAY MARCHING:
-  M.s0123 = view_matrix[0];                                                                         // Getting view matrix...
-  M.s4567 = view_matrix[1];                                                                         // Getting view matrix...
-  M.s89AB = view_matrix[2];                                                                         // Getting view matrix...
-  M.sCDEF = view_matrix[3];                                                                         // Getting view matrix...
+  M = view_matrix[0];                                                                               // Getting view matrix...
 
   camera.pos = (float3)(0.0f, 0.2f, 2.0f);                                                          // Setting initial camera position...
+  camera.pos = mul(M, (float4)(camera.pos, 1.0f)).xyz;                                              // Applying arcball to camera position...
   camera.fov = FOV;                                                                                 // Setting camera FOV...
 
   light.pos = light_position[0].xyz;                                                                // Setting light position...
@@ -295,26 +315,50 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   light.amb = light_color[0].w;                                                                     // Setting light ambient intensity [ambient]...
   light.k   = light_position[0].w;                                                                  // Setting light sharpness [k]...
 
+  ray = (float3)(x*AR, y, -1.0f/tan(camera.fov*PI/360.0f));                                         // Computing ray intersection on canvas...
+  ray = mul(M, (float4)(ray, 1.0f)).xyz;                                                            // Applying arcball to ray direction...
+  ray = normalize(ray);                                                                             // Normalizing ray direction...
+
   for (k = 0; k < num_objects; k++)
   {
-    ball[k].pos = ball_position[k].xyz;                                                             // Setting ball position [x, y, z]...
-    ball[k].col = material_ambient[k].xyz;
-    ball[k].rad = ball_position[k].w;                                                               // Setting ball radius [radius]...
+  // COMPUTING STRIDE MINIMUM INDEX:
+  if (k == 0)
+  {
+    j_min = 0;                                                                  // Setting stride minimum (first stride)...
+  }
+  else
+  {
+    j_min = offset[i - 1];                                                      // Setting stride minimum (all others)...
   }
 
-  material.amb = material_ambient[0].xyz;                                                           // Setting material ambient color...
-  material.dif = material_diffusion[0].xyz;                                                         // Setting material diffusion color...
-  material.ref = material_reflection[0].xyz;                                                        // Setting material reflection color...
-  material.t   = material_ambient[0].w;                                                             // Setting materila transparency...
-  material.n   = material_diffusion[0].w;                                                           // Setting material index of refraction...
-  material.s   = material_reflection[0].w;                                                          // Setting material shininess...
+  j_max = object_offset[k];                                               // Neighbour stride maximum index.
+
+  i = 0;
+
+  for(j = j_min; j < j_max; j++)
+  {
+    param[i] = object_parameter[j];
+    i++;
+  }
+    
+
+    cSDF.amb_t = object_ambient[k];                                                                 // Setting object ambient color...
+    cSDF.dif_s = object_diffusion[k];                                                               // Setting object diffusion color...
+    cSDF.ref_n = object_reflection[k];                                                              // Setting object reflection color...
+
+    T = object_transformation[k];                                                                   // Getting transformation matrix.
+    type = object_type[k];                                                                          // Getting object type.
+
+    offset = object_offset[k];
+
+    cSDF = objectSDF (type, T, cSDF, param, ray);
+  }
 
 
 
-  camera.pos = mul(V, (float4)(camera.pos, 1.0f)).xyz;                                              // Applying arcball to camera position...
-  ray = (float3)(x*AR, y, -1.0f/tan(camera.fov*PI/360.0f));                                         // Computing ray intersection on canvas...
-  ray = mul(V, (float4)(ray, 1.0f)).xyz;                                                            // Applying arcball to ray direction...
-  ray = normalize(ray);                                                                             // Normalizing ray direction...
+
+  
+  
   
   
   // COMPUTING RAY MARCHING:
