@@ -10,14 +10,15 @@
 #define DY (float3)(0.0f, EPSILON, 0.0f)                                                            // y-direction increment.
 #define DZ (float3)(0.0f, 0.0f, EPSILON)                                                            // z-direction increment.
 
-// CAMERA:
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////// DATA STRUCTURES //////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Camera
 {
   float3 pos;                                                                                       // Camera position.
   float  fov;                                                                                       // Camera field of view (degrees).
 };
 
-// LIGHT:
 struct Light
 {
   float3  pos;                                                                                      // Light position.
@@ -26,22 +27,13 @@ struct Light
   float   k;                                                                                        // Light sharpness.
 };
 
-// FRAGMENT:
 struct Fragment
 {
-  float3  amb;
-  float3  dif;
-  float3  ref;
+  float3  amb;                                                                                      // Fragment ambient light.
+  float3  dif;                                                                                      // Fragment diffused light.
+  float3  ref;                                                                                      // Fragment reflected light.
 };
 
-enum ObjectType
-{
-  SCENE = 0,
-  PLANE = 1,
-  SPHERE = 2
-}; 
-
-// Object:
 struct Object
 {
   int     type;                                                                                     // Object type.
@@ -55,6 +47,16 @@ struct Object
   float3  N;                                                                                        // Current normal.
 };
 
+enum ObjectType
+{
+  SCENE = 0,
+  PLANE = 1,
+  SPHERE = 2
+}; 
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////// LINEAR ALGEBRA //////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 float4 mul(float16 M, float4 V)
 {
   float4 A;
@@ -68,7 +70,7 @@ float4 mul(float16 M, float4 V)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////// OBJECT'S SIGNED DISTANCE FIELDS IMPLICIT FUNCTIONS /////////////////////
+//////////////////////////////////////// SIGNED DISTANCE FIELD ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Object objectSDF (struct Object object, float3 ray)
 {
@@ -130,7 +132,7 @@ struct Object sceneSDF(int object_number, int* object_type, float16* T, float16*
   return scene;
 }
 
-float3 normal(int object_number, int* object_type, float16* T, float16* M, float3 point)
+float3 normalSDF(int object_number, int* object_type, float16* T, float16* M, float3 point)
 {
   struct Object scene;
   struct Object scene_LX;
@@ -202,7 +204,7 @@ float3 normal(int object_number, int* object_type, float16* T, float16* M, float
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////// RAY MARCHING ////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-struct Object raymarch(int object_number, int* object_type, float16* T, float16* M, float3 point, float3 direction)
+struct Object raymarchSDF(int object_number, int* object_type, float16* T, float16* M, float3 point, float3 direction)
 {
   float             distance = 0.0f;                                                                // Marching distance.
   struct Object     scene;                                                                          // Scene.
@@ -220,7 +222,7 @@ struct Object raymarch(int object_number, int* object_type, float16* T, float16*
     if(distance > MAX_DISTANCE || scene.sdf < EPSILON)                                              // Checking numeric precision constraints...
     {
       scene.P = point + distance*direction;                                                         // Computing scene position...
-      scene.N = normal(object_number, object_type, T, M, P);                                        // Computing scene normal...
+      scene.N = normalSDF(object_number, object_type, T, M, P);                                     // Computing scene normal...
       scene.sdf = distance;                                                                         // Computing scene sdf...
       break;
     }
@@ -229,26 +231,26 @@ struct Object raymarch(int object_number, int* object_type, float16* T, float16*
   return scene;                                                                                     // Returning scene...
 }
 
-float shadow(float3 position, float3 direction, struct Object object, struct Light light)
+float shadowSDF(int object_number, int* object_type, float16* T, float16* M, float3 point, float3 direction, struct Light light)
 {
-  float   distance = 0.0f;                                                                          // Marching distance.
-  float   sdf = INF;                                                                                // Previous step signed distance field.
-  float   sdf_new;                                                                                  // Current step signed distance field.
-  int     i;                                                                                        // Step index.
-  float3  ray;                                                                                      // Marching ray.
-  float   shadow = 1.0f;                                                                            // Shadow intensity.
-  float   intersection;                                                                             // Previous to current SDF on-ray intersection point.
-  float   d_est;                                                                                    // Estimated closest distance.
+  float             distance = 0.0f;                                                                // Marching distance.
+  struct Object     scene;                                                                          // Scene.
+  float             sdf_prev = INF;                                                                 // Previous step signed distance field.
+  int               i;                                                                              // Step index.
+  float3            P;                                                                              // Marching ray.
+  float             shadow = 1.0f;                                                                  // Shadow intensity.
+  float             intersection;                                                                   // Previous to current SDF on-ray intersection point.
+  float             distance_est;                                                                   // Estimated closest distance.
 
   for (i = 0; i < MAX_STEPS; i++)
   {
-    ray = position + distance*direction;                                                            // Computing marching ray...   
-    sdf_new = object.sdf;                                                                           // Setting distance field... 
-    intersection = (i == 0) ? 0.0f : sdf_new*sdf_new/(2.0f*sdf);                                    // Computing on-ray intersection point...
-    d_est = sqrt(sdf_new*sdf_new - intersection*intersection);                                      // Computing estimated closest distance...
-    shadow = min(shadow, light.k*d_est/max(0.0f, distance - intersection));                         // Computing shadow intensity...
-    sdf = sdf_new;                                                                                  // Backing up signed distance field...
-    distance += sdf_new;                                                                            // Updating marching distance...
+    P = point + distance*direction;                                                                 // Computing marching ray...   
+    scene = sceneSDF(object_number, object_type, T, M, P);                                          // Computing scene...                                                                     
+    intersection = (i == 0) ? 0.0f : scene.sdf*scene.sdf/(2.0f*sdf_prev);                           // Computing on-ray intersection point...
+    distance_est = sqrt(scene.sdf*scene.sdf - intersection*intersection);                           // Computing estimated closest distance...
+    shadow = min(shadow, light.k*distance_est/max(0.0f, distance - intersection));                  // Computing shadow intensity...
+    sdf_prev = scene.sdf;                                                                           // Backing up signed distance field...
+    distance += scene.sdf;                                                                          // Updating marching distance...
     
     if(distance > MAX_DISTANCE || shadow < EPSILON) break;                                          // Checking numeric precision constraints...
   }
@@ -258,29 +260,9 @@ float shadow(float3 position, float3 direction, struct Object object, struct Lig
   return shadow;                                                                                    // Returning final shadow intensity...
 }
 
-float3 normal(float3 position, struct Ball ball[], int n)
-{
-  float nx;                                                                                         // Scene SDF's gradient x-component.
-  float ny;                                                                                         // Scene SDF's gradient y-component.
-  float nz;                                                                                         // Scene SDF's gradient z-component.
-  float sdf_L;                                                                                      // Scene SDF (left limit).
-  float sdf_R;                                                                                      // Scene SDF (right limit).
-
-  sdf_L = sceneSDF(position - DX, ball, n).w;                                                       // Computing signed distance field (left limit)...
-  sdf_R = sceneSDF(position + DX, ball, n).w;                                                       // Computing signed distance field (left limit)...
-  nx = sdf_R - sdf_L;                                                                               // Computing gradient (x-component, centered derivative)...
-
-  sdf_L = sceneSDF(position - DY, ball, n).w;                                                       // Computing signed distance field (left limit)...
-  sdf_R = sceneSDF(position + DY, ball, n).w;                                                       // Computing signed distance field (left limit)...
-  ny = sdf_R - sdf_L;                                                                               // Computing gradient (x-component, centered derivative)...
-
-  sdf_L = sceneSDF(position - DZ, ball, n).w;                                                       // Computing signed distance field (left limit)...
-  sdf_R = sceneSDF(position + DZ, ball, n).w;                                                       // Computing signed distance field (left limit)...
-  nz = sdf_R - sdf_L;                                                                               // Computing gradient (x-component, centered derivative)...   
-  
-  return normalize((float3)(nx, ny, nz));                                                           // Returning normal vector...
-}
-
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////// OPTICS ////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 float3 reflect(float3 I, float3 N)
 {
   float3 reflect;
@@ -317,6 +299,9 @@ float3 refract(float3 I, float3 N, float n1, float n2)
                         __global float4*    object_reflection,                                      // Object reflection color [r, g, b, shininess].
                         
 */
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////// KERNEL ///////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 __kernel void thekernel(__global float4*    fragment_color,                                         // Fragment color.
                         __global float4*    center,
                         __global float16*   view_matrix,                                            // View matrix [4x4].
@@ -331,37 +316,18 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 { 
   uint            i = get_global_id(0);                                                             // Global index i [#].
   uint            j = get_global_id(1);                                                             // Global index j [#].
-  uint            k;
-  uint            offset = 0;
-
   float16         V;                                                                                // View matrix.
-
   float           W = canvas[0].x;                                                                  // Window width [px].
   float           H = canvas[0].y;                                                                  // Window height [px].
   float           AR = canvas[0].z;                                                                 // Window aspect ratio [].
   float           FOV = canvas[0].w;                                                                // FOV [degrees].
   float           x = 2.0f*(i/W) - 1.0f;                                                            // Canvas x-coordinate [-1.0f...+1.0f].
   float           y = 2.0f*(j/H) - 1.0f;                                                            // Canvas y-coordinate [-1.0f...+1.0f].
-
   int             n = object_number[0];
 
   struct Camera   camera;                                                                           // Camera.
   struct Light    light;                                                                            // Light.
-  struct Object   object;                                                                           // Object.
-  struct Object   object_LX;                                                                           // Object.
-  struct Object   object_LY;                                                                           // Object.
-  struct Object   object_RX;                                                                           // Object.
-  struct Object   object_RY;                                                                           // Object.
-  struct Object   object_LZ;                                                                           // Object.
-  struct Object   object_RZ;                                                                           // Object.
   struct Object   scene;                                                                            // Scene.
-  struct Object   scene_LX;                                                                            // Scene.
-  struct Object   scene_RX;                                                                            // Scene.
-  struct Object   scene_LY;                                                                            // Scene.
-  struct Object   scene_RY;                                                                            // Scene.
-  struct Object   scene_LZ;                                                                            // Scene.
-  struct Object   scene_RZ;                                                                            // Scene.
-  struct Object   empty;
   struct Fragment fragment;                                                                         // Fragment.
 
   float3          ray;                                                                              // Marching ray.
@@ -374,6 +340,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float           ambient;                                                                          // Ambient light intensity.
   float           diffusion;                                                                        // Diffusion light intensity.
   float           reflection;                                                                       // Reflection light intensity.
+  float           shadow;                                                                           // Shadow intensity.
   float3          P;                                                                                // Scene position.
   float3          N;                                                                                // Scene normal direction.
 
@@ -394,31 +361,30 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   ray = normalize(ray);                                                                             // Normalizing ray direction...
 
   // COMPUTING RAY MARCHING:
-  scene = raymarch(n, object_type, T, M, camera.pos, ray);                                          // Computing ray marching...
-  
-  col_d = raymarch(camera.pos, ray, ball, 3);                                                       // Computing scene distance...
- 
+  scene = raymarchSDF(n, object_type, T, M, camera.pos, ray);                                       // Computing ray marching...
   
   // COMPUTING LIGHTNING:
+  P = scene.P;
+  N = scene.N;
   view = normalize(camera.pos - P);                                                                 // Computing view direction...
   incident = normalize(light.pos - P);                                                              // Computing incident light direction...
-  
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
   ambient = light.amb;                                                                              // Computing light ambient color...
-  reflection = pow(max(dot(N, halfway), 0.0f), material.s);                                         // Computing light reflection intensity
-  diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow(P + N*2.0f*EPSILON, incident, ball, 3, light);// Computing light diffusion intensity... 
+  reflection = pow(max(dot(N, halfway), 0.0f), scene.dif.w);                                        // Computing light reflection intensity
+  shadow = shadowSDF(n, object_type, T, M, P + N*2.0f*EPSILON, incident, light);                    // Computing shadow intensity...
+  diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
   /*
   refracted = refract(incident, N, 1.00f, 1.33f);
-  d = raymarch(P, -refracted, ball, 3).w;                                                                    // Computing scene distance...
-  P = P + d*ray;                                                                           // Computing scene position...
+  d = raymarch(P, -refracted, ball, 3).w;                                                           // Computing scene distance...
+  P = P + d*ray;                                                                                    // Computing scene position...
   N = normal(P, ball, 3);                                                                           // Computing scene normal...
   */
 
-  fragment.amb = ambient*light.col*material.amb;                                                    // Computing light ambient color...
-  fragment.dif = diffusion*light.col*col_d.xyz;                                                  // Computing light diffused color...
-  fragment.ref = reflection*light.col*material.ref;                                                 // Computing light reflected color...
+  fragment.amb = ambient*light.col*scene.amb.xyz;                                                   // Computing light ambient color...
+  fragment.dif = diffusion*light.col*scene.dif.xyz;                                                 // Computing light diffused color...
+  fragment.ref = reflection*light.col*scene.ref.xyz;                                                // Computing light reflected color...
 
   fragment_color[i + (uint)W*j] = (float4)(fragment.amb + fragment.dif + fragment.ref, 1.0f);       // Setting output color...
 }
