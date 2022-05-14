@@ -34,35 +34,35 @@
 int main ()
 {
   // MOUSE PARAMETERS:
-  float               ms_orbit_rate       = 1.0f;                                                   // Orbit rotation rate [rev/s].
-  float               ms_pan_rate         = 5.0f;                                                   // Pan translation rate [m/s].
-  float               ms_decaytime        = 1.25f;                                                  // Pan LP filter decay time [s].
+  float               ms_orbit_rate  = 1.0f;                                                        // Orbit rotation rate [rev/s].
+  float               ms_pan_rate    = 5.0f;                                                        // Pan translation rate [m/s].
+  float               ms_decaytime   = 1.25f;                                                       // Pan LP filter decay time [s].
 
   // GAMEPAD PARAMETERS:
-  float               gmp_orbit_rate      = 1.0f;                                                   // Orbit angular rate coefficient [rev/s].
-  float               gmp_pan_rate        = 1.0f;                                                   // Pan translation rate [m/s].
-  float               gmp_decaytime       = 1.25f;                                                  // Low pass filter decay time [s].
-  float               gmp_deadzone        = 0.30f;                                                  // Gamepad joystick deadzone [0...1].
+  float               gmp_orbit_rate = 1.0f;                                                        // Orbit angular rate coefficient [rev/s].
+  float               gmp_pan_rate   = 1.0f;                                                        // Pan translation rate [m/s].
+  float               gmp_decaytime  = 1.25f;                                                       // Low pass filter decay time [s].
+  float               gmp_deadzone   = 0.30f;                                                       // Gamepad joystick deadzone [0...1].
 
   // OPENGL:
-  nu::opengl*         gl                  = new nu::opengl (NM, SX, SY, OX, OY, PX, PY, PZ);        // OpenGL context.
-  nu::shader*         sh                  = new nu::shader ();                                      // OpenGL shader program.
-  nu::projection_mode pmode               = nu::MONOCULAR;                                          // OpenGL projection mode.
-  nu::view_mode       vmode               = nu::INVERSE;                                            // OpenGL VIEW mode.
+  nu::opengl*         gl             = new nu::opengl (NM, SX, SY, OX, OY, PX, PY, PZ);             // OpenGL context.
+  nu::shader*         sh             = new nu::shader ();                                           // OpenGL shader program.
+  nu::projection_mode pmode          = nu::MONOCULAR;                                               // OpenGL projection mode.
+  nu::view_mode       vmode          = nu::INVERSE;                                                 // OpenGL VIEW mode.
 
   // OPENCL:
-  nu::opencl*         cl                  = new nu::opencl (nu::GPU);                               // OpenCL context.
-  nu::kernel*         K1                  = new nu::kernel ();                                      // OpenCL kernel array.
-  nu::float4*         fragment_color      = new nu::float4 (0);                                     // Color [r, g, b, a].
-  nu::float4*         center              = new nu::float4 (1);                                     // Center point.
-  nu::float16*        view_matrix         = new nu::float16 (2);                                    // View matrix [4x4].
-  nu::float4*         canvas              = new nu::float4 (3);                                     // Canvas parameters [W, H, AR, FOV].
-  nu::float4*         light_position      = new nu::float4 (4);                                     // Light position [x, y, z, k].
-  nu::float4*         light_color         = new nu::float4 (5);                                     // Light color [r, g, b, ambient].
-  nu::float4*         ball_position       = new nu::float4 (6);                                     // Ball position [x, y, z, radius].
-  nu::float4*         material_ambient    = new nu::float4 (7);                                     // Material ambient color [r, g, b, transparency].
-  nu::float4*         material_diffusion  = new nu::float4 (8);                                     // Material diffusion color [r, g, b, n_index].
-  nu::float4*         material_reflection = new nu::float4 (9);                                     // Material reflection color [r, g, b, shininess].
+  nu::opencl*         cl             = new nu::opencl (nu::GPU);                                    // OpenCL context.
+  nu::kernel*         K1             = new nu::kernel ();                                           // OpenCL kernel array.
+  nu::float4*         fragment_color = new nu::float4 (0);                                          // Color [r, g, b, a].
+  nu::float4*         center         = new nu::float4 (1);                                          // Center point.
+  nu::float16*        view_matrix    = new nu::float16 (2);                                         // View matrix [4x4].
+  nu::float4*         canvas         = new nu::float4 (3);                                          // Canvas parameters [W, H, AR, FOV].
+  nu::float4*         light_position = new nu::float4 (4);                                          // Light position [x, y, z, k].
+  nu::float4*         light_color    = new nu::float4 (5);                                          // Light color [r, g, b, ambient].
+  nu::int1*           object_number  = new nu::int1 (6);                                            // Number of objects.
+  nu::int1*           object_type    = new nu::int1 (7);                                            // Object type.
+  nu::float16*        T              = new nu::float16 (8);                                         // Transformation matrix.
+  nu::float16*        M              = new nu::float16 (9);                                         // Material matrix.
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////// DATA INITIALIZATION //////////////////////////////////////
@@ -86,14 +86,24 @@ int main ()
   canvas->data.push_back ({800.0f, 800.0f, 800.0f/600.0f, 60.0f});                                  // Initializing canvas parameters [W, H, AR, FOV]...
   light_position->data.push_back ({5.0f, 5.0f, 0.0f, 10.0f});                                       // Initializing light position [x, y, z, k]...
   light_color->data.push_back ({1.0f, 1.0f, 1.0f, 0.1f});                                           // Initializing light color [r, g, b, ambient]...
-  ball_position->data.push_back ({0.0f, 0.0f, 0.0f, 0.2f});                                         // Initializing ball position [x, y, z, radius]...
-  ball_position->data.push_back ({0.5f, 0.2f, 0.3f, 0.3f});                                         // Initializing ball position [x, y, z, radius]...
-  ball_position->data.push_back ({0.4f, 0.4f, -0.2f, 0.2f});                                        // Initializing ball position [x, y, z, radius]...
-  material_ambient->data.push_back ({0.0f, 0.8f, 0.2f, 1.0f});                                      // Initializing material ambient color [r, g, b, transparency]...
-  material_ambient->data.push_back ({0.9f, 0.4f, 0.3f, 1.0f});                                      // Initializing material ambient color [r, g, b, transparency]...
-  material_ambient->data.push_back ({0.8f, 0.8f, 0.2f, 1.0f});                                      // Initializing material ambient color [r, g, b, transparency]...
-  material_diffusion->data.push_back ({0.0f, 0.2f, 0.8f, 1.0f});                                    // Initializing material diffusion color [r, g, b, n_index]...
-  material_reflection->data.push_back ({0.5f, 0.5f, 0.5f, 12.0f});                                  // Initializing material reflection color [r, g, b, shininess]...
+  object_number->data.push_back (3);
+
+  for(i = 1; i < 3; i++)
+  {
+    object_type->data.push_back (2);
+    T->data.push_back (
+                       {1.0f, 0.0f, 0.0f, float(i),
+                        0.0f, 1.0f, 0.0f, 0.0f,
+                        0.0f, 0.0f, 1.0f, 0.0f,
+                        0.0f, 0.0f, 0.0f, 1.0f}
+                      );
+    M->data.push_back (
+                       {0.0f, 0.8f, 0.2f, 1.0f,
+                        0.0f, 0.2f, 0.8f, 1.0f,
+                        0.0f, 0.0f, 1.0f, 1.0f,
+                        0.5f, 0.5f, 0.5f, 12.0f}
+                      );
+  }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////// OPENCL KERNELS INITIALIZATION /////////////////////////////////
@@ -159,10 +169,10 @@ int main ()
   delete canvas;
   delete light_position;
   delete light_color;                                                                               // Deleting color data...
-  delete ball_position;
-  delete material_ambient;
-  delete material_diffusion;
-  delete material_reflection;
+  delete object_number;
+  delete object_type;
+  delete T;
+  delete M;
 
   return 0;
 }
