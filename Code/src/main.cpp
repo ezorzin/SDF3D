@@ -88,7 +88,7 @@ int main ()
   light_color->data.push_back ({1.0f, 1.0f, 1.0f, 0.1f});                                           // Initializing light color [r, g, b, ambient]...
   object_number->data.push_back (3);
 
-  object_type->data.push_back (1);
+  object_type->data.push_back (2);
   object_type->data.push_back (2);
   object_type->data.push_back (2);
 
