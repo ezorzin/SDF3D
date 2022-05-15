@@ -308,6 +308,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   scene = EMPTY;
 
+  n = 1;
+
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
   {
@@ -318,8 +320,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
     object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
-    //scene = object;
-    scene = unionSDF(scene, object);                                                                // Assembling scene...
+    scene = object;
+    //scene = unionSDF(scene, object);                                                                // Assembling scene...
   }
 
   // COMPUTING LIGHTNING:
