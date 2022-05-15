@@ -102,7 +102,7 @@ int main ()
                       );
     M->data.push_back (
                        {0.2f, 0.0f, 0.0f, 0.0f,
-                        1.0f, 1.0f, 1.0f, 0.1f,
+                        0.0f, 0.8f, 0.2f, 1.0f,
                         0.0f, 0.8f, 0.2f, 1.0f,
                         0.5f, 0.5f, 0.5f, 12.0f}
                       );
@@ -133,13 +133,13 @@ int main ()
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   while(!gl->closed ())                                                                             // Opening window...
   {
+
     cl->get_tic ();                                                                                 // Getting "tic" [us]...
 
-    view_matrix->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8],  gl->V_mat[12]};
-    view_matrix->data[1] = {gl->V_mat[1], gl->V_mat[5], gl->V_mat[9],  gl->V_mat[13]};
-    view_matrix->data[2] = {gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14]};
-    view_matrix->data[3] = {gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
-
+    view_matrix->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8],  gl->V_mat[12],
+                            gl->V_mat[1], gl->V_mat[5], gl->V_mat[9],  gl->V_mat[13],
+                            gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14],
+                            gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
     canvas->data[0]      = {float(SX), float(SY), gl->aspect_ratio, 60.0f};
 
     cl->write (2);
