@@ -6,9 +6,23 @@
 #define MAX_DISTANCE 100.0f                                                                         // Maximum marching distance.
 #define EPSILON 0.01f                                                                               // Minimum surface distance (ray marching epsilon).
 #define INF 1.0f/0.0f                                                                               // Infinity.
-#define DX (float3)(EPSILON, 0.0f, 0.0f)                                                            // x-direction increment.
-#define DY (float3)(0.0f, EPSILON, 0.0f)                                                            // y-direction increment.
-#define DZ (float3)(0.0f, 0.0f, EPSILON)                                                            // z-direction increment.
+
+#define OOO  0.0f, 0.0f, 0.1f
+#define III  1.0f, 1.0f, 1.0f
+#define IOO  1.0f, 0.0f, 0.0f
+#define OIO  0.0f, 1.0f, 0.0f
+#define OOI  0.0f, 0.0f, 1.0f
+#define ZERO3 (float3)(OOO)
+#define ONE3  (float)(III)
+
+#define OOOO 0.0f, 0.0f, 0.0f, 0.0f
+#define IIII 1.0f, 1.0f, 1.0f, 1.0f
+#define IOOO 1.0f, 0.0f, 0.0f, 0.0f
+#define OIOO 0.0f, 1.0f, 0.0f, 0.1f
+#define OOIO 0.0f, 0.0f, 1.0f, 0.0f
+#define OOOI 0.0f, 0.0f, 0.0f, 1.0f
+#define ZERO4 (float4)(OOOO)
+#define I4x4 (float16)(IOOO, OIOO, OOIO, OOOI)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////// DATA STRUCTURES //////////////////////////////////////////
@@ -53,6 +67,21 @@ enum ObjectType
   PLANE = 1,
   SPHERE = 2
 }; 
+
+const float3 TETRAHEDRON[4] = {(float3)(+1.0f, -1.0f, -1.0f),
+                               (float3)(-1.0f, -1.0f, +1.0f),
+                               (float3)(-1.0f, +1.0f, -1.0f),
+                               (float3)(+1.0f, +1.0f, +1.0f)};
+
+const struct Object EMPTY = {.type = 0,
+                             .T = I4x4,
+                             .par = ZERO4,
+                             .amb = ZERO4,
+                             .dif = ZERO4,
+                             .ref = ZERO4,
+                             .sdf = INF,
+                             .P = ZERO3,
+                             .N = ZERO3};
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////// LINEAR ALGEBRA //////////////////////////////////////////
@@ -104,18 +133,13 @@ struct Object unionSDF(struct Object a, struct Object b)
 float3 normalSDF(int object_type, float4 object_parameter, float16 T, float3 point, float h)
 {
   float3 N;
-  float3 tetra[4];
   int i;
 
   N = (float3)(0.0f, 0.0f, 0.0f);
-  tetra[0] = (float3)(+1.0f, -1.0f, -1.0f);
-  tetra[1] = (float3)(-1.0f, -1.0f, +1.0f);
-  tetra[2] = (float3)(-1.0f, +1.0f, -1.0f);
-  tetra[3] = (float3)(+1.0f, +1.0f, +1.0f);
-
+  
   for(i = 0; i < 4; i++)
   {
-    N += objectSDF(object_type, object_parameter, T, point + tetra[i]*h)*tetra[i];
+    N += objectSDF(object_type, object_parameter, T, point + TETRAHEDRON[i]*h)*TETRAHEDRON[i];
   }
 
   return normalize(N);
@@ -149,10 +173,9 @@ struct Object raymarchSDF(struct Object object, float3 point, float3 direction, 
   return object;                                                                                     // Returning scene...
 }
 
-float shadowSDF(int object_number, int* object_type, float16* T, float16* M, float3 point, float3 direction, struct Light light)
+float shadowSDF(struct Object scene, float3 point, float3 direction, struct Light light)
 {
   float             distance = 0.0f;                                                                // Marching distance.
-  struct Object     scene;                                                                          // Scene.
   float             sdf_prev = INF;                                                                 // Previous step signed distance field.
   int               i;                                                                              // Step index.
   float3            P;                                                                              // Marching ray.
@@ -163,7 +186,7 @@ float shadowSDF(int object_number, int* object_type, float16* T, float16* M, flo
   for (i = 0; i < MAX_STEPS; i++)
   {
     P = point + distance*direction;                                                                 // Computing marching ray...   
-    scene = sceneSDF(object_number, object_type, T, M, P);                                          // Computing scene...                                                                     
+    scene.sdf = objectSDF(scene.type, scene.par, scene.T, P);                                       // Computing scene sdf...                                          
     intersection = (i == 0) ? 0.0f : scene.sdf*scene.sdf/(2.0f*sdf_prev);                           // Computing on-ray intersection point...
     distance_est = sqrt(scene.sdf*scene.sdf - intersection*intersection);                           // Computing estimated closest distance...
     shadow = min(shadow, light.k*distance_est/max(0.0f, distance - intersection));                  // Computing shadow intensity...
@@ -283,7 +306,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   h = 0.001f;                                                                                       // EZOR: to be better defined...
 
-  scene = EMPTY; // EZOR: to be defined.
+  scene = EMPTY;
 
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
@@ -307,7 +330,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.dif.w);                                        // Computing light reflection intensity
-  shadow = shadowSDF(n, object_type, T, M, P + N*2.0f*EPSILON, incident, light);                    // Computing shadow intensity...
+  shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
   /*
