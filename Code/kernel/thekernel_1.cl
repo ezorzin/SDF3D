@@ -72,26 +72,28 @@ float4 mul(float16 M, float4 V)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// SIGNED DISTANCE FIELD ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-struct Object objectSDF (struct Object object, float3 ray)
+float objectSDF (int object_type, float4 object_parameter, float16 T, float3 ray)
 {
-  ray = mul(object.T, (float4)(ray, 1.0f)).xyz;                                                     // Applying transformation matrix...
+  float sdf;
 
-  switch (object.type)
+  ray = mul(T, (float4)(ray, 1.0f)).xyz;                                                     // Applying transformation matrix...
+
+  switch (object_type)
   {
     case SCENE:
-      object.sdf = INF;
+      sdf = INF;
 
     case PLANE:
-      object.sdf = dot(ray, (float3)(0.0f, 0.0f, 1.0f));                                            // Computing sdf...
+      sdf = dot(ray, (float3)(0.0f, 0.0f, 1.0f));                                            // Computing sdf...
       break;
 
     case SPHERE:
       // parameter.x = radius.
-      object.sdf = length(ray) - object.par.x;                                                      // Computing sdf...
+      sdf = length(ray) - object_parameter.x;                                                      // Computing sdf...
       break;
   }
  
-  return object;                                                                                    // Returning object...
+  return sdf;                                                                                    // Returning object...
 }
 
 struct Object unionSDF(struct Object a, struct Object b)
@@ -131,6 +133,73 @@ struct Object sceneSDF(int object_number, int* object_type, float16* T, float16*
 
   return scene;
 }
+
+#define TET_0 (float3)(+1.0f, -1.0f, -1.0f)
+#define TET_1 (float3)(-1.0f, -1.0f, +1.0f)
+#define TET_2 (float3)(-1.0f, +1.0f, -1.0f)
+#define TET_3 (float3)(+1.0f, +1.0f, +1.0f)
+
+struct Object object;
+struct Object scene;
+int k;
+float sdf;
+float4 object_dSDF; // Object's signed distance field tetrahedrical differential.
+float4 scene_dSDF; // Scene's signed distance field tetrahedrical differential.
+float sdf_LX;
+float sdf_LY;
+float sdf_RX;
+float sdf_RY;
+float sdf_LZ;
+float sdf_RZ;
+
+for (k = 0; k < object_number; k++)
+  {
+    object.type = object_type[k];                                                                   // Getting object type...
+    object.T = T[k];                                                                                // Getting object transformation matrix...
+    object.par = M[k].s0123;                                                                        // Getting object parameters...
+    object.amb = M[k].s4567;                                                                        // Getting object ambient color...
+    object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
+    object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
+    
+    object.sdf = objectSDF(object.type, object.par, object.T, point);                                                             // Computing object sdf...
+    scene = unionSDF(scene, object);                                                                // Assembling scene...
+
+    object_dSDF.x = objectSDF(object.type, object.par, object.T, point + TET_0*h);                                                     // Computing sdf (X left differential)...
+    object_dSDF.y = objectSDF(object.type, object.par, object.T, point + TET_1*h);                                                     // Computing sdf (X right differential)...
+    object_dSDF.z = objectSDF(object.type, object.par, object.T, point + TET_2*h);                                                     // Computing sdf (Y left differential)...
+    object_dSDF.w = objectSDF(object.type, object.par, object.T, point + TET_3*h);                                                     // Computing sdf (Y right differential)...
+    
+    scene_dSDF.x = unionSDFnorm(scene_dSDF.x, object_dSDF.x);                                                      
+    scene_dSDF.y = unionSDFnorm(scene_dSDF.y, object_dSDF.y);
+    scene_dSDF.z = unionSDFnorm(scene_dSDF.z, object_dSDF.z);
+    scene_dSDF.w = unionSDFnorm(scene_dSDF.w, object_dSDF.w);
+  }
+
+  N = normalize(scene_dSDF.x*TET_0 + 
+                scene_dSDF.y*TET_1 +
+                scene_dSDF.z*TET_2 +
+                scene_dSDF.w*TET_3);
+
+
+for (i = 0; i < MAX_STEPS; i++)
+  {
+    P = point + distance*direction;                                                                 // Computing marching ray...    
+
+    scene = sceneSDF(object_number, object_type, T, M, P);                                          // Computing scene...
+    distance += scene.sdf;                                                                          // Updating marching distance...
+
+    if(distance > MAX_DISTANCE || scene.sdf < EPSILON)                                              // Checking numeric precision constraints...
+    {
+      scene.P = point + distance*direction;                                                         // Computing scene position...
+      scene.N = normalSDF(object_number, object_type, T, M, P);                                     // Computing scene normal...
+      scene.sdf = distance;                                                                         // Computing scene sdf...
+      break;
+    }
+  }
+
+  return scene;  
+
+
 
 float3 normalSDF(int object_number, int* object_type, float16* T, float16* M, float3 point)
 {
