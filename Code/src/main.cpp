@@ -88,9 +88,12 @@ int main ()
   light_color->data.push_back ({1.0f, 1.0f, 1.0f, 0.1f});                                           // Initializing light color [r, g, b, ambient]...
   object_number->data.push_back (3);
 
-  for(i = 1; i < 3; i++)
+  object_type->data.push_back (1);
+  object_type->data.push_back (2);
+  object_type->data.push_back (2);
+
+  for(i = 0; i < 3; i++)
   {
-    object_type->data.push_back (2);
     T->data.push_back (
                        {1.0f, 0.0f, 0.0f, float(i),
                         0.0f, 1.0f, 0.0f, 0.0f,
@@ -98,9 +101,9 @@ int main ()
                         0.0f, 0.0f, 0.0f, 1.0f}
                       );
     M->data.push_back (
-                       {0.0f, 0.8f, 0.2f, 1.0f,
-                        0.0f, 0.2f, 0.8f, 1.0f,
-                        0.0f, 0.0f, 1.0f, 1.0f,
+                       {0.2f, 0.0f, 0.0f, 0.0f,
+                        1.0f, 1.0f, 1.0f, 0.1f,
+                        0.0f, 0.8f, 0.2f, 1.0f,
                         0.5f, 0.5f, 0.5f, 12.0f}
                       );
   }
