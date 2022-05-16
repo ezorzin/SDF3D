@@ -11,7 +11,7 @@
 #define DY (float3)(0.0f, EPSILON, 0.0f)                                                            // y-direction increment.
 #define DZ (float3)(0.0f, 0.0f, EPSILON)                                                            // z-direction increment.
 
-#define OOO  0.0f, 0.0f, 0.1f
+#define OOO  0.0f, 0.0f, 0.0f
 #define III  1.0f, 1.0f, 1.0f
 #define IOO  1.0f, 0.0f, 0.0f
 #define OIO  0.0f, 1.0f, 0.0f
@@ -19,10 +19,15 @@
 #define ZERO3 (float3)(OOO)
 #define ONE3  (float)(III)
 
+#define TET_A (float3)(+1.0f, -1.0f, -1.0f)
+#define TET_B (float3)(-1.0f, -1.0f, +1.0f)
+#define TET_C (float3)(-1.0f, +1.0f, -1.0f)
+#define TET_D (float3)(+1.0f, +1.0f, +1.0f)
+
 #define OOOO 0.0f, 0.0f, 0.0f, 0.0f
 #define IIII 1.0f, 1.0f, 1.0f, 1.0f
 #define IOOO 1.0f, 0.0f, 0.0f, 0.0f
-#define OIOO 0.0f, 1.0f, 0.0f, 0.1f
+#define OIOO 0.0f, 1.0f, 0.0f, 0.0f
 #define OOIO 0.0f, 0.0f, 1.0f, 0.0f
 #define OOOI 0.0f, 0.0f, 0.0f, 1.0f
 #define ZERO4 (float4)(OOOO)
@@ -71,11 +76,6 @@ enum ObjectType
   PLANE = 1,
   SPHERE = 2
 }; 
-
-float3 TETRAHEDRON[4] = {(+1.0f, -1.0f, -1.0f),
-                               (-1.0f, -1.0f, +1.0f),
-                               (-1.0f, +1.0f, -1.0f),
-                               (+1.0f, +1.0f, +1.0f)};
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////// LINEAR ALGEBRA //////////////////////////////////////////
@@ -135,12 +135,12 @@ float3 normalSDF(int object_type, float4 object_parameter, float3 point, float h
   float3 N;
   int i;
 
-  N = (float3)(0.0f, 0.0f, 0.0f);
+  N = ZERO3;
   
-  N += objectSDF(object_type, object_parameter, point + (float3)(+1.0f, -1.0f, -1.0f)*h)*(float3)(+1.0f, -1.0f, -1.0f);
-  N += objectSDF(object_type, object_parameter, point + (float3)(-1.0f, -1.0f, +1.0f)*h)*(float3)(-1.0f, -1.0f, +1.0f);
-  N += objectSDF(object_type, object_parameter, point + (float3)(-1.0f, +1.0f, -1.0f)*h)*(float3)(-1.0f, +1.0f, -1.0f);
-  N += objectSDF(object_type, object_parameter, point + (float3)(+1.0f, +1.0f, +1.0f)*h)*(float3)(+1.0f, +1.0f, +1.0f);
+  N += objectSDF(object_type, object_parameter, point + TET_A*h)*TET_A;
+  N += objectSDF(object_type, object_parameter, point + TET_B*h)*TET_B;
+  N += objectSDF(object_type, object_parameter, point + TET_C*h)*TET_C;
+  N += objectSDF(object_type, object_parameter, point + TET_D*h)*TET_D;
 
   return normalize(N);
 }
