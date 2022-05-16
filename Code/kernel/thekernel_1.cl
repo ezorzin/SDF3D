@@ -7,6 +7,10 @@
 #define EPSILON 0.01f                                                                               // Minimum surface distance (ray marching epsilon).
 #define INF 1.0f/0.0f                                                                               // Infinity.
 
+#define DX (float3)(EPSILON, 0.0f, 0.0f)                                                            // x-direction increment.
+#define DY (float3)(0.0f, EPSILON, 0.0f)                                                            // y-direction increment.
+#define DZ (float3)(0.0f, 0.0f, EPSILON)                                                            // z-direction increment.
+
 #define OOO  0.0f, 0.0f, 0.1f
 #define III  1.0f, 1.0f, 1.0f
 #define IOO  1.0f, 0.0f, 0.0f
@@ -68,20 +72,10 @@ enum ObjectType
   SPHERE = 2
 }; 
 
-const float3 TETRAHEDRON[4] = {(float3)(+1.0f, -1.0f, -1.0f),
-                               (float3)(-1.0f, -1.0f, +1.0f),
-                               (float3)(-1.0f, +1.0f, -1.0f),
-                               (float3)(+1.0f, +1.0f, +1.0f)};
-
-const struct Object EMPTY = {.type = 0,
-                             .T = I4x4,
-                             .par = ZERO4,
-                             .amb = ZERO4,
-                             .dif = ZERO4,
-                             .ref = ZERO4,
-                             .sdf = INF,
-                             .P = ZERO3,
-                             .N = ZERO3};
+float3 TETRAHEDRON[4] = {(+1.0f, -1.0f, -1.0f),
+                               (-1.0f, -1.0f, +1.0f),
+                               (-1.0f, +1.0f, -1.0f),
+                               (+1.0f, +1.0f, +1.0f)};
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////// LINEAR ALGEBRA //////////////////////////////////////////
@@ -143,14 +137,10 @@ float3 normalSDF(int object_type, float4 object_parameter, float3 point, float h
 
   N = (float3)(0.0f, 0.0f, 0.0f);
   
-  //for(i = 0; i < 4; i++)
-  //{
-    //N += objectSDF(object_type, object_parameter, point + TETRAHEDRON[i]*h)*TETRAHEDRON[i];
-    N += objectSDF(object_type, object_parameter, point + (float3)(+1.0f, -1.0f, -1.0f)*h)*(float3)(+1.0f, -1.0f, -1.0f);
-    N += objectSDF(object_type, object_parameter, point + (float3)(-1.0f, -1.0f, +1.0f)*h)*(float3)(-1.0f, -1.0f, +1.0f);
-    N += objectSDF(object_type, object_parameter, point + (float3)(-1.0f, +1.0f, -1.0f)*h)*(float3)(-1.0f, +1.0f, -1.0f);
-    N += objectSDF(object_type, object_parameter, point + (float3)(+1.0f, +1.0f, +1.0f)*h)*(float3)(+1.0f, +1.0f, +1.0f);
-  //}
+  N += objectSDF(object_type, object_parameter, point + (float3)(+1.0f, -1.0f, -1.0f)*h)*(float3)(+1.0f, -1.0f, -1.0f);
+  N += objectSDF(object_type, object_parameter, point + (float3)(-1.0f, -1.0f, +1.0f)*h)*(float3)(-1.0f, -1.0f, +1.0f);
+  N += objectSDF(object_type, object_parameter, point + (float3)(-1.0f, +1.0f, -1.0f)*h)*(float3)(-1.0f, +1.0f, -1.0f);
+  N += objectSDF(object_type, object_parameter, point + (float3)(+1.0f, +1.0f, +1.0f)*h)*(float3)(+1.0f, +1.0f, +1.0f);
 
   return normalize(N);
 }
@@ -175,11 +165,17 @@ struct Object raymarchSDF(struct Object object, float3 origin, float3 direction,
     if(distance > MAX_DISTANCE || object.sdf < EPSILON) break;                                      // Checking numeric precision constraints...
   }
 
+  if(distance > MAX_DISTANCE)
+  {
+    object.amb = ZERO4;
+    object.dif = ZERO4;
+    object.ref = ZERO4;
+  }
+
   object.sdf = distance;                                                                            // Computing object distance...
-  P = origin + distance*direction;
-  P = displaceSDF(object.T, P);
-  object.P = P;
-  //object.P = origin + distance*direction;                                                           // Computing scene position...
+  P = origin + distance*direction;                                                                  // Computing marching ray...
+  P = displaceSDF(object.T, P);                                                                     // Displacing object...
+  object.P = P;                                                                                     // Computing object ray position...                                            
   object.N = normalSDF(object.type, object.par, object.P, h);                                       // Computing object normal...
   
   return object;                                                                                    // Returning scene...
@@ -198,6 +194,7 @@ float shadowSDF(struct Object scene, float3 origin, float3 direction, struct Lig
   for (i = 0; i < MAX_STEPS; i++)
   {
     P = origin + distance*direction;                                                                // Computing marching ray...   
+    P = displaceSDF(scene.T, P);                                                                   // Displacing object...
     scene.sdf = objectSDF(scene.type, scene.par, P);                                                // Computing scene sdf...                                          
     intersection = (i == 0) ? 0.0f : scene.sdf*scene.sdf/(2.0f*sdf_prev);                           // Computing on-ray intersection point...
     distance_est = sqrt(scene.sdf*scene.sdf - intersection*intersection);                           // Computing estimated closest distance...
@@ -318,8 +315,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
-  scene = EMPTY;
-
+  scene.sdf = INF;
+  n = 4;
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
   {
@@ -336,10 +333,6 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   // COMPUTING LIGHTNING:
   P = scene.P;
   N = scene.N;
-  if (i == 500 && j == 500)
-  {
-    printf("%f, %f, %f\n", N.x, N.y, N.z);
-  }
   
   view = normalize(camera.pos - P);                                                                 // Computing view direction...
   incident = normalize(light.pos - P);                                                              // Computing incident light direction...
@@ -348,8 +341,9 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.ref.w);                                        // Computing light reflection intensity
   shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
-  //shadow = 1.0f;
+  shadow = 1.0f;
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
+  
   
   /*
   refracted = refract(incident, N, 1.00f, 1.33f);
