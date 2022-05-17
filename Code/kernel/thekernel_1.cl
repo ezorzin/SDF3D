@@ -360,8 +360,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   
   //shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
   //shadow = 1.0f;
-  //scene.shd = 1.0f;
-  diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*scene2.shd;                                           // Computing light diffusion intensity... 
+  scene.shd = 1.0f;
+  diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*scene.shd;                                           // Computing light diffusion intensity... 
   
   if(i == 500 && j == 500)
   {
