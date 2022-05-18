@@ -192,10 +192,10 @@ struct Object shadowSDF(struct Object object, float3 origin, float3 direction, s
   float             intersection;                                                                   // Previous to current SDF on-ray intersection point.
   float             distance_est;                                                                   // Estimated closest distance.
 
+  /*
   for (i = 0; i < MAX_STEPS; i++)
   {
     P = origin + distance*direction;                                                                // Computing marching ray...   
-    //P = displaceSDF(scene.T, P);                                                                   // Displacing object...
     object.sdf = objectSDF(object.type, object.par, P);                                                // Computing scene sdf...                                          
     intersection = (i == 0) ? 0.0f : object.sdf*object.sdf/(2.0f*sdf_prev);                           // Computing on-ray intersection point...
     distance_est = sqrt(object.sdf*object.sdf - intersection*intersection);                           // Computing estimated closest distance...
@@ -205,8 +205,19 @@ struct Object shadowSDF(struct Object object, float3 origin, float3 direction, s
     
     if(distance > MAX_DISTANCE || shadow < EPSILON) break;                                          // Checking numeric precision constraints...
   }
+  */
 
-  object.shd = clamp(shadow, 0.0f, 1.0f);                                                               // Clamping shadow intensity...
+  object = raymarchSDF(object, origin + 2.0f*EPSILON*object.N, direction, 0.001f);
+
+  if(object.sdf < length(light.pos - origin))
+  {
+    object.shd = 0.1f;
+  }
+  else
+  {
+    object.shd = 1.0f;
+  }
+  //object.shd = clamp(shadow, 0.0f, 1.0f);                                                               // Clamping shadow intensity...
 
   return object;                                                                                    // Returning final shadow intensity...
 }
@@ -318,7 +329,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
   scene.sdf = INF;
-
+  scene2 = scene;
+  n = 3;
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
   {
@@ -335,15 +347,14 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   // COMPUTING LIGHTNING:
   P = scene.P;
   N = scene.N;
-  
+
+
   view = normalize(camera.pos - P);                                                                 // Computing view direction...
   incident = normalize(light.pos - P);                                                              // Computing incident light direction...
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.ref.w);                                        // Computing light reflection intensity
-  
-  scene2 = scene;
 
   // COMPUTING SHADOW:
   for(k = 0; k < n; k++)
@@ -354,14 +365,21 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object.amb = M[k].s4567;                                                                        // Getting object ambient color...
     object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
-    object = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
-    scene2 = scene2.shd < object.shd? scene2 : object;
+    P = object.P - 
+    object = raymarchSDF(object, object.P + 2.0f*EPSILON*object.N, incident, 0.001f);
+    //object = shadowSDF(object, object.P, incident, light);                                   // Computing shadow intensity...
+    //scene2 = unionSDF(scene2, object); 
+    if (object.sdf < scene.sdf)
+    {
+      shadow = 
+    }
+    scene2 = object.sdf < length(light.pos - object.P)? scene2 : object;
   }
   
   //shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
-  //shadow = 1.0f;
-  scene.shd = 1.0f;
-  diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*scene.shd;                                           // Computing light diffusion intensity... 
+  shadow = scene2.shd;
+  //scene.shd = 1.0f;
+  diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
   if(i == 500 && j == 500)
   {
