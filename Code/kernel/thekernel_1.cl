@@ -182,34 +182,31 @@ struct Object raymarchSDF(struct Object object, float3 origin, float3 direction,
   return object;                                                                                    // Returning scene...
 }
 
-struct Object shadowSDF(struct Object object, float3 origin, float3 direction, struct Light light)
+struct Object shadowmarchSDF(struct Object object, float3 origin, float3 direction, float h)
 {
   float             distance = 0.0f;                                                                // Marching distance.
-  float             sdf_prev = INF;                                                                 // Previous step signed distance field.
   int               i;                                                                              // Step index.
+  int               k;                                                                              // Object index.
   float3            P;                                                                              // Marching ray.
-  float             shadow = 1.0f;                                                                  // Shadow intensity.
-  float             intersection;                                                                   // Previous to current SDF on-ray intersection point.
-  float             distance_est;                                                                   // Estimated closest distance.
-
-  /*
+    
   for (i = 0; i < MAX_STEPS; i++)
   {
-    P = origin + distance*direction;                                                                // Computing marching ray...   
-    object.sdf = objectSDF(object.type, object.par, P);                                                // Computing scene sdf...                                          
-    intersection = (i == 0) ? 0.0f : object.sdf*object.sdf/(2.0f*sdf_prev);                           // Computing on-ray intersection point...
-    distance_est = sqrt(object.sdf*object.sdf - intersection*intersection);                           // Computing estimated closest distance...
-    shadow = min(shadow, light.k*distance_est/max(0.0f, distance - intersection));                  // Computing shadow intensity...
-    sdf_prev = object.sdf;                                                                           // Backing up signed distance field...
-    distance += object.sdf;                                                                          // Updating marching distance...
+    P = origin + distance*direction;                                                                // Computing marching ray...
+    //P = displaceSDF(object.T, P);                                                                   // Displacing object...
+    object.sdf = objectSDF(object.type, object.par, P);                                             // Computing object sdf...
+    distance += object.sdf;                                                                         // Updating marching distance...
     
-    if(distance > MAX_DISTANCE || shadow < EPSILON) break;                                          // Checking numeric precision constraints...
+    if(distance > MAX_DISTANCE || object.sdf < EPSILON) break;                                      // Checking numeric precision constraints...
   }
-  */
 
-  object = raymarchSDF(object, origin + 2.0f*EPSILON*object.N, direction, 0.001f);
+  if(distance > MAX_DISTANCE)
+  {
+    object.amb = ZERO4;
+    object.dif = ZERO4;
+    object.ref = ZERO4;
+  }
 
-  if(object.sdf < length(light.pos - origin))
+  if(distance < length(direction))
   {
     object.shd = 0.1f;
   }
@@ -217,9 +214,8 @@ struct Object shadowSDF(struct Object object, float3 origin, float3 direction, s
   {
     object.shd = 1.0f;
   }
-  //object.shd = clamp(shadow, 0.0f, 1.0f);                                                               // Clamping shadow intensity...
-
-  return object;                                                                                    // Returning final shadow intensity...
+  
+  return object;                                                                                    // Returning scene...
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -291,6 +287,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   struct Camera   camera;                                                                           // Camera.
   struct Light    light;                                                                            // Light.
   struct Object   object;                                                                            // Scene.
+  struct Object   object2;                                                                            // Scene.
   struct Object   scene;                                                                            // Scene.
   struct Object   scene2;                                                                            // Scene.
   struct Fragment fragment;                                                                         // Fragment.
@@ -299,6 +296,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float           distance;                                                                         // Marching distance.
   float3          view;                                                                             // View direction.
   float3          incident;                                                                         // Incident light direction.
+  float3          incident2;                                                                         // Incident light direction.
   float3          reflected;                                                                        // Reflected light direction.
   float3          refracted;                                                                        // Refracted light direction.
   float3          halfway;                                                                          // Halfway light direction (Blinn-Phong).
@@ -330,7 +328,9 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   scene.sdf = INF;
   scene2 = scene;
-  n = 3;
+  scene2.shd = 1.0f;
+
+  n = 2;
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
   {
@@ -341,13 +341,16 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
     object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
+    object2 = object;
+    incident = normalize(light.pos - object.P);
+    object2 = shadowmarchSDF(object2, object2.P + 2.0f*EPSILON*object2.N, incident, h);
+    object.shd = object2.shd < 1.0f ? object2.shd : 1.0f;
     scene = unionSDF(scene, object);                                                                // Assembling scene...
   }
 
   // COMPUTING LIGHTNING:
   P = scene.P;
   N = scene.N;
-
 
   view = normalize(camera.pos - P);                                                                 // Computing view direction...
   incident = normalize(light.pos - P);                                                              // Computing incident light direction...
@@ -356,34 +359,16 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.ref.w);                                        // Computing light reflection intensity
 
-  // COMPUTING SHADOW:
-  for(k = 0; k < n; k++)
-  {
-    object.type = object_type[k];                                                                   // Getting object type...
-    object.T = T[k];                                                                                // Getting object transformation matrix...
-    object.par = M[k].s0123;                                                                        // Getting object parameters...
-    object.amb = M[k].s4567;                                                                        // Getting object ambient color...
-    object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
-    object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
-    P = object.P - 
-    object = raymarchSDF(object, object.P + 2.0f*EPSILON*object.N, incident, 0.001f);
-    //object = shadowSDF(object, object.P, incident, light);                                   // Computing shadow intensity...
-    //scene2 = unionSDF(scene2, object); 
-    if (object.sdf < scene.sdf)
-    {
-      shadow = 
-    }
-    scene2 = object.sdf < length(light.pos - object.P)? scene2 : object;
-  }
+  
   
   //shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
-  shadow = scene2.shd;
-  //scene.shd = 1.0f;
+  shadow = scene.shd;
+  //shadow = 0.1f;
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
-  if(i == 500 && j == 500)
+  if(i == 512 && j == 384)
   {
-  printf("shadow = %f\n", diffusion);
+  printf("shadow = %f\n", shadow);
   }
   /*
   refracted = refract(incident, N, 1.00f, 1.33f);
