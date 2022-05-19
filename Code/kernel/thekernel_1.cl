@@ -337,7 +337,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
-  n = 2;
+  n = 3;
 
   scene.sdf = INF;
 
@@ -375,6 +375,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   //scene2 = scene;
   shadow_old = 1.0f;
 
+  scene2.sdf = INF;
+  incident2 = normalize(incident);
   for(k = 0; k < n; k++)
   {
     object2.type = object_type[k];                                                                   // Getting object type...
@@ -383,23 +385,27 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object2.amb = M[k].s4567;                                                                        // Getting object ambient color...
     object2.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object2.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
-    object2 = raymarchSDF(object, P + 2.0f*EPSILON*N, incident, h);
+    object2 = raymarchSDF(object2, P + 2.0f*EPSILON*N, incident2, h);
     //incident2 = normalize(light.pos - P);
     //object2 = shadowmarchSDF(object2, P + 2.0f*EPSILON*object2.N, incident, h);
     
-    //scene2 = unionSDF(scene2, object2);                                                                // Assembling scene...
+    scene2 = unionSDF(scene2, object2);                                                                // Assembling scene...
 
-    shadow = object2.sdf < length(light.pos - P) ? 0.1f : 1.0f;
+    
 
+    /*
     if(shadow_old == 0.1f)
     {
       shadow = 0.1f;
     }
     
     shadow_old = shadow;
+    */
   }
   
-  
+  shadow = scene2.sdf < length(incident) ? 0.1f : 1.0f;
+
+    //if (shadow == 0.1f) break;
 
   //shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
   //shadow = scene.shd;
