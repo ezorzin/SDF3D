@@ -206,6 +206,7 @@ struct Object shadowmarchSDF(struct Object object, float3 origin, float3 directi
     object.ref = ZERO4;
   }
 
+  /*
   if(distance < length(direction))
   {
     object.shd = 0.1f;
@@ -214,7 +215,14 @@ struct Object shadowmarchSDF(struct Object object, float3 origin, float3 directi
   {
     object.shd = 1.0f;
   }
-  
+  */
+
+  object.sdf = distance;                                                                            // Computing object distance...
+  P = origin + distance*direction;                                                                  // Computing marching ray...
+  //P = displaceSDF(object.T, P);                                                                     // Displacing object...
+  object.P = P;                                                                                     // Computing object ray position...                                            
+  //object.N = normalSDF(object.type, object.par, object.P, h);                                       // Computing object normal...
+
   return object;                                                                                    // Returning scene...
 }
 
@@ -304,9 +312,12 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float           diffusion;                                                                        // Diffusion light intensity.
   float           reflection;                                                                       // Reflection light intensity.
   float           shadow;                                                                           // Shadow intensity.
+  float           shadow_old;
   float3          P;                                                                                // Scene position.
   float3          N;                                                                                // Scene normal direction.
   float           h;                                                                                // Normal precision (for antialiasing).
+  
+  float d[6];
 
   // INITIALIZING RAY MARCHING:
   V = view_matrix[0];                                                                               // Getting view matrix...
@@ -326,11 +337,10 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
-  scene.sdf = INF;
-  scene2 = scene;
-  scene2.shd = 1.0f;
-
   n = 2;
+
+  scene.sdf = INF;
+
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
   {
@@ -341,11 +351,14 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
     object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
-    object2 = object;
-    incident = normalize(light.pos - object.P);
-    object2 = shadowmarchSDF(object2, object2.P + 2.0f*EPSILON*object2.N, incident, h);
-    object.shd = object2.shd < 1.0f ? object2.shd : 1.0f;
+    //object2 = object;
+    //incident = normalize(light.pos - object.P);
+    //object2 = shadowmarchSDF(object2, object2.P + 2.0f*EPSILON*object2.N, incident, h);
+    
     scene = unionSDF(scene, object);                                                                // Assembling scene...
+
+    //scene.shd = object2.shd == 0.1f ? 0.1f : 1.0f;
+    
   }
 
   // COMPUTING LIGHTNING:
@@ -355,15 +368,42 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   view = normalize(camera.pos - P);                                                                 // Computing view direction...
   incident = normalize(light.pos - P);                                                              // Computing incident light direction...
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
-  halfway = normalize(incident + view);                                                             // Coputing halfway vector (Blinn-Phong)...
+  halfway = normalize(incident + view);                                                             // Computing halfway vector (Blinn-Phong)...
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.ref.w);                                        // Computing light reflection intensity
 
+  //scene2 = scene;
+  shadow_old = 1.0f;
+
+  for(k = 0; k < n; k++)
+  {
+    object2.type = object_type[k];                                                                   // Getting object type...
+    object2.T = T[k];                                                                                // Getting object transformation matrix...
+    object2.par = M[k].s0123;                                                                        // Getting object parameters...
+    object2.amb = M[k].s4567;                                                                        // Getting object ambient color...
+    object2.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
+    object2.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
+    object2 = raymarchSDF(object, P + 2.0f*EPSILON*N, incident, h);
+    //incident2 = normalize(light.pos - P);
+    //object2 = shadowmarchSDF(object2, P + 2.0f*EPSILON*object2.N, incident, h);
+    
+    //scene2 = unionSDF(scene2, object2);                                                                // Assembling scene...
+
+    shadow = object2.sdf < length(light.pos - P) ? 0.1f : 1.0f;
+
+    if(shadow_old == 0.1f)
+    {
+      shadow = 0.1f;
+    }
+    
+    shadow_old = shadow;
+  }
   
   
+
   //shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
-  shadow = scene.shd;
-  //shadow = 0.1f;
+  //shadow = scene.shd;
+  //shadow = 1.0f;
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
   if(i == 512 && j == 384)
