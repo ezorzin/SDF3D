@@ -295,10 +295,9 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
-  n = 2;
+  n = 4;
 
   scene.sdf = INF;
-  scene.shd = 1.0f;
 
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
@@ -309,25 +308,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object.amb = M[k].s4567;                                                                        // Getting object ambient color...
     object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
-    
     object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
-
-    object2 = object;
-
     scene = unionSDF(scene, object);                                                                // Assembling scene...
-
-    incident = light.pos - object.P;
-    object2 = raymarchSDF(object2, object2.P + 2.0f*EPSILON*object2.N, normalize(incident), h);
-    
-    if(object2.sdf < 0.95f*length(incident))
-    {
-      scene.shd = 0.1f;
-      //first = false;
-    }
-    else
-    {
-      scene.shd = 1.0f;
-    }
   }
 
   // COMPUTING LIGHTNING:
@@ -340,6 +322,30 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   halfway = normalize(incident + view);                                                             // Computing halfway vector (Blinn-Phong)...
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.ref.w);                                        // Computing light reflection intensity
+
+  scene2.sdf = INF;
+
+  for(k = 0; k < n; k++)
+  {
+    object.type = object_type[k];                                                                   // Getting object type...
+    object.T = T[k];                                                                                // Getting object transformation matrix...
+    object.par = M[k].s0123;                                                                        // Getting object parameters...
+    object.amb = M[k].s4567;                                                                        // Getting object ambient color...
+    object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
+    object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
+    
+    object = raymarchSDF(object, P + 2.0f*EPSILON*N, incident, h);                                  // Computing object raymarching...  
+    scene2 = unionSDF(scene2, object);                                                                // Assembling scene...
+  }
+
+  if(scene2.sdf < 0.95f*length(light.pos - P))
+  {
+    scene.shd = 0.1f;
+  }
+  else
+  {
+    scene.shd = 1.0f;
+  }
 
   shadow = scene.shd;
   //shadow = 1.0f;
