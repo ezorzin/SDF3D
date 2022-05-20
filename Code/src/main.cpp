@@ -70,6 +70,7 @@ int main ()
   ///////////////////////////////////////// DATA INITIALIZATION //////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   int                 i;
+  int                 N              = 50;
 
   for(i = 0; i < (SX*SY); i++)
   {
@@ -88,30 +89,30 @@ int main ()
   canvas->data.push_back ({800.0f, 800.0f, 800.0f/600.0f, 60.0f});                                  // Initializing canvas parameters [W, H, AR, FOV]...
   light_position->data.push_back ({5.0f, 5.0f, 0.0f, 10.0f});                                       // Initializing light position [x, y, z, k]...
   light_color->data.push_back ({1.0f, 1.0f, 1.0f, 0.1f});                                           // Initializing light color [r, g, b, ambient]...
-  object_number->data.push_back (4);
+  object_number->data.push_back (N);
 
-  /*
-     object_type->data.push_back (0);
-     A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 0.0f;
-     A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.0f;
-     A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = 0.0f;
-     A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
 
-     inv (A, A);
-     T->data.push_back (
+  object_type->data.push_back (0);
+  A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 0.0f;
+  A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.0f;
+  A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = 0.0f;
+  A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
+
+  inv (A, A);
+  T->data.push_back (
                      {A[0], A[1], A[2], A[3],
                       A[4], A[5], A[6], A[7],
                       A[8], A[9], A[10], A[11],
                       A[12], A[13], A[14], A[15]}
                     );
 
-     M->data.push_back (
+  M->data.push_back (
                      {0.0f, 0.0f, 0.0f, 0.0f,
                       0.0f, 0.0f, 0.0f, 0.0f,
                       0.0f, 0.0f, 0.0f, 0.0f,
                       0.0f, 0.0f, 0.0f, 0.0f}
                     );
-   */
+
   object_type->data.push_back (1);
   A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 0.0f;
   A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.0f;
@@ -133,68 +134,31 @@ int main ()
                       0.5f, 0.5f, 0.5f, 12.0f}
                     );
 
-  object_type->data.push_back (2);
-  A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 0.2f;
-  A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.7f;
-  A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = 0.0f;
-  A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
+  for(i = 2; i < N; i++)
+  {
+    object_type->data.push_back (2);
+    A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 2.0f*((float) rand () / (RAND_MAX)) - 1.0f;
+    A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 2.0f*((float) rand () / (RAND_MAX)) - 1.0f;
+    A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = ((float) rand () / (RAND_MAX)) + 1.0f;
+    A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
 
-  inv (A, A);
-  T->data.push_back (
-                     {A[0], A[1], A[2], A[3],
-                      A[4], A[5], A[6], A[7],
-                      A[8], A[9], A[10], A[11],
-                      A[12], A[13], A[14], A[15]}
-                    );
+    inv (A, A);
+    T->data.push_back (
+                       {A[0], A[1], A[2], A[3],
+                        A[4], A[5], A[6], A[7],
+                        A[8], A[9], A[10], A[11],
+                        A[12], A[13], A[14], A[15]}
+                      );
 
-  M->data.push_back (
-                     {0.3f, 0.0f, 0.0f, 0.0f,
-                      0.8f, 0.0f, 0.2f, 1.0f,
-                      0.8f, 0.0f, 0.2f, 1.0f,
-                      0.5f, 0.5f, 0.5f, 12.0f}
-                    );
-
-  object_type->data.push_back (2);
-  A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = -0.6f;
-  A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.4f;
-  A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = 0.0f;
-  A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
-
-  inv (A, A);
-  T->data.push_back (
-                     {A[0], A[1], A[2], A[3],
-                      A[4], A[5], A[6], A[7],
-                      A[8], A[9], A[10], A[11],
-                      A[12], A[13], A[14], A[15]}
-                    );
-
-  M->data.push_back (
-                     {0.2f, 0.0f, 0.0f, 0.0f,
-                      0.0f, 0.8f, 0.8f, 1.0f,
-                      0.0f, 0.2f, 0.8f, 1.0f,
-                      0.5f, 0.5f, 0.5f, 12.0f}
-                    );
-
-  object_type->data.push_back (2);
-  A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = -0.6f;
-  A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.9f;
-  A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = 0.2f;
-  A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
-
-  inv (A, A);
-  T->data.push_back (
-                     {A[0], A[1], A[2], A[3],
-                      A[4], A[5], A[6], A[7],
-                      A[8], A[9], A[10], A[11],
-                      A[12], A[13], A[14], A[15]}
-                    );
-
-  M->data.push_back (
-                     {0.3f, 0.0f, 0.0f, 0.0f,
-                      1.0f, 0.8f, 0.8f, 1.0f,
-                      1.0f, 0.2f, 0.8f, 1.0f,
-                      0.5f, 0.5f, 0.5f, 12.0f}
-                    );
+    M->data.push_back (
+                       {((float) rand () / (RAND_MAX))*0.2f, 0.0f, 0.0f, 0.0f,
+                        ((float) rand () / (RAND_MAX)), ((float) rand () / (RAND_MAX)),
+                        ((float) rand () / (RAND_MAX)), 1.0f,
+                        ((float) rand () / (RAND_MAX)), ((float) rand () / (RAND_MAX)),
+                        ((float) rand () / (RAND_MAX)), 1.0f,
+                        0.5f, 0.5f, 0.5f, 12.0f}
+                      );
+  }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// OPENCL KERNELS INITIALIZATION /////////////////////////////////
