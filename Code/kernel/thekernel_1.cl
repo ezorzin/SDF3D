@@ -133,6 +133,26 @@ struct Object unionSDF(struct Object a, struct Object b)
   return a.sdf < b.sdf? a : b;
 }
 
+struct Object smoothunionSDF(struct Object A, struct Object B, float smoothness)
+{
+  float interpolation = clamp(0.5f + 0.5f*(B.sdf - A.sdf)/smoothness, 0.0f, 1.0f);
+  struct Object C;
+
+  C = A.sdf < B.sdf? A : B;
+
+  
+  C.amb = mix(B.amb, A.amb, interpolation);
+  C.dif = mix(B.dif, A.dif, interpolation);
+  C.ref = mix(B.ref, A.ref, interpolation);
+  //C.P = mix(B.P, A.P, interpolation);
+  //C.N = mix(B.N, A.N, interpolation);
+  
+  //C.sdf = mix(B.sdf, A.sdf, interpolation);
+
+
+  return C;
+}
+
 struct Object shadowSDF(struct Object a, struct Object b)
 {
   return a.shd < b.shd? a : b;
@@ -325,6 +345,9 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
   scene.sdf = INF;
+  scene.amb = 0.0f;
+  scene.dif = 0.0f;
+  scene.ref = 0.0f;
 
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
@@ -337,6 +360,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
     object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
     scene = unionSDF(scene, object);                                                                // Assembling scene...
+    //scene =  smoothunionSDF(scene, object, 10.1f);
   }
 
   // COMPUTING LIGHTNING:
@@ -363,6 +387,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   }
 
   shadow = scene2.shd;
+  //shadow = 1.0f;
 
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   

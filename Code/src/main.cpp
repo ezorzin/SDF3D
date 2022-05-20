@@ -28,6 +28,8 @@
 #define KERNEL_1      "thekernel_1.cl"                                                              // OpenCL kernel source.
 #define UTILITIES     "utilities.cl"                                                                // OpenCL utilities source.
 
+#define N             50                                                                            // Number of object.
+
 // INCLUDES:
 #include "nu.hpp"                                                                                   // Neutrino's header file.
 
@@ -64,13 +66,17 @@ int main ()
   nu::float16*        T              = new nu::float16 (8);                                         // Transformation matrix.
   nu::float16*        M              = new nu::float16 (9);                                         // Material matrix.
 
+  float               A_init[16];
   float               A[16];
+
+  float               x[N];
+  float               y[N];
+  float               z[N];
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////// DATA INITIALIZATION //////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   int                 i;
-  int                 N              = 50;
 
   for(i = 0; i < (SX*SY); i++)
   {
@@ -91,27 +97,28 @@ int main ()
   light_color->data.push_back ({1.0f, 1.0f, 1.0f, 0.1f});                                           // Initializing light color [r, g, b, ambient]...
   object_number->data.push_back (N);
 
+  /*
+     object_type->data.push_back (0);
+     A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 0.0f;
+     A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.0f;
+     A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = 0.0f;
+     A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
 
-  object_type->data.push_back (0);
-  A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 0.0f;
-  A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 0.0f;
-  A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = 0.0f;
-  A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
-
-  inv (A, A);
-  T->data.push_back (
+     inv (A, A);
+     T->data.push_back (
                      {A[0], A[1], A[2], A[3],
                       A[4], A[5], A[6], A[7],
                       A[8], A[9], A[10], A[11],
                       A[12], A[13], A[14], A[15]}
                     );
 
-  M->data.push_back (
+     M->data.push_back (
                      {0.0f, 0.0f, 0.0f, 0.0f,
                       0.0f, 0.0f, 0.0f, 0.0f,
                       0.0f, 0.0f, 0.0f, 0.0f,
                       0.0f, 0.0f, 0.0f, 0.0f}
                     );
+   */
 
   object_type->data.push_back (1);
   A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 0.0f;
@@ -134,24 +141,28 @@ int main ()
                       0.5f, 0.5f, 0.5f, 12.0f}
                     );
 
-  for(i = 2; i < N; i++)
+  for(i = 1; i < N; i++)
   {
-    object_type->data.push_back (2);
-    A[0]  = 1.0f; A[1] = 0.0f; A[2] = 0.0f; A[3] = 2.0f*((float) rand () / (RAND_MAX)) - 1.0f;
-    A[4]  = 0.0f; A[5] = 1.0f; A[6] = 0.0f; A[7] = 2.0f*((float) rand () / (RAND_MAX)) - 1.0f;
-    A[8]  = 0.0f; A[9] = 0.0f; A[10] = 1.0f; A[11] = ((float) rand () / (RAND_MAX)) + 1.0f;
-    A[12] = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
+    x[i]       = (float) rand () / (RAND_MAX);
+    y[i]       = (float) rand () / (RAND_MAX);
+    z[i]       = (float) rand () / (RAND_MAX);
 
-    inv (A, A);
+    object_type->data.push_back (2);
+    A_init[0]  = 1.0f; A_init[1] = 0.0f; A_init[2] = 0.0f; A_init[3] = 2.0f*x[i] - 1.0f;
+    A_init[4]  = 0.0f; A_init[5] = 1.0f; A_init[6] = 0.0f; A_init[7] = y[i] + 0.2f;
+    A_init[8]  = 0.0f; A_init[9] = 0.0f; A_init[10] = 1.0f; A_init[11] = 2.0f*z[i] - 1.0f;
+    A_init[12] = 0.0f; A_init[13] = 0.0f; A_init[14] = 0.0f; A_init[15] = 1.0f;
+
+    inv (A_init, A_init);
     T->data.push_back (
-                       {A[0], A[1], A[2], A[3],
-                        A[4], A[5], A[6], A[7],
-                        A[8], A[9], A[10], A[11],
-                        A[12], A[13], A[14], A[15]}
+                       {A_init[0], A_init[1], A_init[2], A_init[3],
+                        A_init[4], A_init[5], A_init[6], A_init[7],
+                        A_init[8], A_init[9], A_init[10], A_init[11],
+                        A_init[12], A_init[13], A_init[14], A_init[15]}
                       );
 
     M->data.push_back (
-                       {((float) rand () / (RAND_MAX))*0.2f, 0.0f, 0.0f, 0.0f,
+                       {((float) rand () / (RAND_MAX))*0.3f, 0.0f, 0.0f, 0.0f,
                         ((float) rand () / (RAND_MAX)), ((float) rand () / (RAND_MAX)),
                         ((float) rand () / (RAND_MAX)), 1.0f,
                         ((float) rand () / (RAND_MAX)), ((float) rand () / (RAND_MAX)),
@@ -194,8 +205,28 @@ int main ()
                             gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
     canvas->data[0]      = {float(SX), float(SY), gl->aspect_ratio, 60.0f};
 
+
+    for(i = 1; i < N; i++)
+    {
+      A[0]       = 1.0f; A[1] = 0.0f; A[2] = 0.0f;
+      A[3]       = A_init[3] + 2.5f*x[i]*sin (0.4f*glfwGetTime ());
+      A[4]       = 0.0f; A[5] = 1.0f; A[6] = 0.0f;
+      A[7]       = A_init[7] + 2.5f*y[i]*sin (0.5f*glfwGetTime ()) + 2.5f;
+      A[8]       = 0.0f; A[9] = 0.0f; A[10] = 1.0f;
+      A[11]      = A_init[11] + 2.5f*z[i]*sin (0.7f*glfwGetTime ());
+      A[12]      = 0.0f; A[13] = 0.0f; A[14] = 0.0f; A[15] = 1.0f;
+
+      inv (A, A);
+      T->data[i] = {A[0], A[1], A[2], A[3],
+                    A[4], A[5], A[6], A[7],
+                    A[8], A[9], A[10], A[11],
+                    A[12], A[13], A[14], A[15]};
+    }
+
+
     cl->write (2);
     cl->write (3);
+    cl->write (8);
 
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
     cl->execute (K1, nu::WAIT);                                                                     // Executing OpenCL kernel...
