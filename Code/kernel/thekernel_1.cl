@@ -96,18 +96,20 @@ float4 mul(float16 M, float4 V)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// SIGNED DISTANCE FIELD ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-float3 displaceSDF(float16 T, float3 ray)
+float3 displaceSDF(struct Object object, float3 point)
 {
-  ray = mul(T, (float4)(ray, 1.0f)).xyz;                                                            // Applying transformation matrix...
+  point = mul(object.T, (float4)(point, 1.0f)).xyz;                                                            // Applying transformation matrix...
 
-  return ray;
+  return point;
 }
 
-float objectSDF (int object_type, float4 object_parameter, float3 point)
+float objectSDF (struct Object object, float3 point)
 {
   float sdf;
 
-  switch (object_type)
+  point = displaceSDF(object, point);
+
+  switch (object.type)
   {
     case SCENE:
       sdf = INF;
@@ -119,7 +121,7 @@ float objectSDF (int object_type, float4 object_parameter, float3 point)
 
     case SPHERE:
       // parameter.x = radius.
-      sdf = length(point) - object_parameter.x;                                                       // Computing sdf...
+      sdf = length(point) - object.par.x;                                                       // Computing sdf...
       break;
   }
  
@@ -131,17 +133,17 @@ struct Object unionSDF(struct Object a, struct Object b)
   return a.sdf < b.sdf? a : b;
 }
 
-float3 normalSDF(int object_type, float4 object_parameter, float3 point, float h)
+float3 normalSDF(struct Object object, float3 point, float h)
 {
   float3 N;
   int i;
 
   N = ZERO3;
   
-  N += objectSDF(object_type, object_parameter, point + TET_A*h)*TET_A;
-  N += objectSDF(object_type, object_parameter, point + TET_B*h)*TET_B;
-  N += objectSDF(object_type, object_parameter, point + TET_C*h)*TET_C;
-  N += objectSDF(object_type, object_parameter, point + TET_D*h)*TET_D;
+  N += objectSDF(object, point + TET_A*h)*TET_A;
+  N += objectSDF(object, point + TET_B*h)*TET_B;
+  N += objectSDF(object, point + TET_C*h)*TET_C;
+  N += objectSDF(object, point + TET_D*h)*TET_D;
 
   return normalize(N);
 }
@@ -155,12 +157,12 @@ struct Object raymarchSDF(struct Object object, float3 origin, float3 direction,
   int               i;                                                                              // Step index.
   int               k;                                                                              // Object index.
   float3            P;                                                                              // Marching ray.
-    
+  float3            P_mod;                                                                          // Modified marching ray.
+
   for (i = 0; i < MAX_STEPS; i++)
   {
     P = origin + distance*direction;                                                                // Computing marching ray...
-    P = displaceSDF(object.T, P);                                                                   // Displacing object...
-    object.sdf = objectSDF(object.type, object.par, P);                                             // Computing object sdf...
+    object.sdf = objectSDF(object, P);                                                              // Computing object sdf...
     distance += object.sdf;                                                                         // Updating marching distance...
     
     if(distance > MAX_DISTANCE || object.sdf < EPSILON) break;                                      // Checking numeric precision constraints...
@@ -175,54 +177,9 @@ struct Object raymarchSDF(struct Object object, float3 origin, float3 direction,
 
   object.sdf = distance;                                                                            // Computing object distance...
   P = origin + distance*direction;                                                                  // Computing marching ray...
-  P = displaceSDF(object.T, P);                                                                     // Displacing object...
   object.P = P;                                                                                     // Computing object ray position...                                            
-  object.N = normalSDF(object.type, object.par, object.P, h);                                       // Computing object normal...
+  object.N = normalSDF(object, P, h);                                                               // Computing object normal...
   
-  return object;                                                                                    // Returning scene...
-}
-
-struct Object shadowmarchSDF(struct Object object, float3 origin, float3 direction, float h)
-{
-  float             distance = 0.0f;                                                                // Marching distance.
-  int               i;                                                                              // Step index.
-  int               k;                                                                              // Object index.
-  float3            P;                                                                              // Marching ray.
-    
-  for (i = 0; i < MAX_STEPS; i++)
-  {
-    P = origin + distance*direction;                                                                // Computing marching ray...
-    //P = displaceSDF(object.T, P);                                                                   // Displacing object...
-    object.sdf = objectSDF(object.type, object.par, P);                                             // Computing object sdf...
-    distance += object.sdf;                                                                         // Updating marching distance...
-    
-    if(distance > MAX_DISTANCE || object.sdf < EPSILON) break;                                      // Checking numeric precision constraints...
-  }
-
-  if(distance > MAX_DISTANCE)
-  {
-    object.amb = ZERO4;
-    object.dif = ZERO4;
-    object.ref = ZERO4;
-  }
-
-  /*
-  if(distance < length(direction))
-  {
-    object.shd = 0.1f;
-  }
-  else
-  {
-    object.shd = 1.0f;
-  }
-  */
-
-  object.sdf = distance;                                                                            // Computing object distance...
-  P = origin + distance*direction;                                                                  // Computing marching ray...
-  //P = displaceSDF(object.T, P);                                                                     // Displacing object...
-  object.P = P;                                                                                     // Computing object ray position...                                            
-  //object.N = normalSDF(object.type, object.par, object.P, h);                                       // Computing object normal...
-
   return object;                                                                                    // Returning scene...
 }
 
@@ -316,7 +273,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float3          P;                                                                                // Scene position.
   float3          N;                                                                                // Scene normal direction.
   float           h;                                                                                // Normal precision (for antialiasing).
-  
+  bool first = true;
+
   float d[6];
 
   // INITIALIZING RAY MARCHING:
@@ -337,9 +295,10 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
-  n = 3;
+  n = 2;
 
   scene.sdf = INF;
+  scene.shd = 1.0f;
 
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
@@ -350,15 +309,25 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     object.amb = M[k].s4567;                                                                        // Getting object ambient color...
     object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
-    object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
-    //object2 = object;
-    //incident = normalize(light.pos - object.P);
-    //object2 = shadowmarchSDF(object2, object2.P + 2.0f*EPSILON*object2.N, incident, h);
     
+    object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
+
+    object2 = object;
+
     scene = unionSDF(scene, object);                                                                // Assembling scene...
 
-    //scene.shd = object2.shd == 0.1f ? 0.1f : 1.0f;
+    incident = light.pos - object.P;
+    object2 = raymarchSDF(object2, object2.P + 2.0f*EPSILON*object2.N, normalize(incident), h);
     
+    if(object2.sdf < 0.95f*length(incident))
+    {
+      scene.shd = 0.1f;
+      //first = false;
+    }
+    else
+    {
+      scene.shd = 1.0f;
+    }
   }
 
   // COMPUTING LIGHTNING:
@@ -372,49 +341,13 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.ref.w);                                        // Computing light reflection intensity
 
-  //scene2 = scene;
-  shadow_old = 1.0f;
-
-  scene2.sdf = INF;
-  incident2 = normalize(incident);
-  for(k = 0; k < n; k++)
-  {
-    object2.type = object_type[k];                                                                   // Getting object type...
-    object2.T = T[k];                                                                                // Getting object transformation matrix...
-    object2.par = M[k].s0123;                                                                        // Getting object parameters...
-    object2.amb = M[k].s4567;                                                                        // Getting object ambient color...
-    object2.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
-    object2.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
-    object2 = raymarchSDF(object2, P + 2.0f*EPSILON*N, incident2, h);
-    //incident2 = normalize(light.pos - P);
-    //object2 = shadowmarchSDF(object2, P + 2.0f*EPSILON*object2.N, incident, h);
-    
-    scene2 = unionSDF(scene2, object2);                                                                // Assembling scene...
-
-    
-
-    /*
-    if(shadow_old == 0.1f)
-    {
-      shadow = 0.1f;
-    }
-    
-    shadow_old = shadow;
-    */
-  }
-  
-  shadow = scene2.sdf < length(incident) ? 0.1f : 1.0f;
-
-    //if (shadow == 0.1f) break;
-
-  //shadow = shadowSDF(scene, P + N*2.0f*EPSILON, incident, light);                                   // Computing shadow intensity...
-  //shadow = scene.shd;
+  shadow = scene.shd;
   //shadow = 1.0f;
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
   if(i == 512 && j == 384)
   {
-  printf("shadow = %f\n", shadow);
+  printf("\n sdf = %f, inc = %f, shadow = %f\n", object2.sdf, length(incident2), shadow);
   }
   /*
   refracted = refract(incident, N, 1.00f, 1.33f);
