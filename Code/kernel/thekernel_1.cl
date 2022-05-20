@@ -215,13 +215,7 @@ float3 refract(float3 I, float3 N, float n1, float n2)
         
   return refract;  
 }
-/*
-                        __global float4*    object_parameter                                        // Object parameters.
-                        __global float4*    object_ambient,                                         // Object ambient color [r, g, b, transparency].
-                        __global float4*    object_diffusion,                                       // Object diffusion color [r, g, b, n_index].
-                        __global float4*    object_reflection,                                      // Object reflection color [r, g, b, shininess].
-                        
-*/
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////// KERNEL ///////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +267,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float3          P;                                                                                // Scene position.
   float3          N;                                                                                // Scene normal direction.
   float           h;                                                                                // Normal precision (for antialiasing).
-  bool first = true;
+  bool shd;
 
   float d[6];
 
@@ -295,9 +289,10 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
-  n = 4;
-
   scene.sdf = INF;
+  scene2.sdf = INF;
+
+  shd = false;
 
   // COMPUTING RAY MARCHING:
   for(k = 0; k < n; k++)
@@ -323,8 +318,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   ambient = light.amb;                                                                              // Computing light ambient color...
   reflection = pow(max(dot(N, halfway), 0.0f), scene.ref.w);                                        // Computing light reflection intensity
 
-  scene2.sdf = INF;
-
+  
   for(k = 0; k < n; k++)
   {
     object.type = object_type[k];                                                                   // Getting object type...
@@ -338,7 +332,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
     scene2 = unionSDF(scene2, object);                                                                // Assembling scene...
   }
 
-  if(scene2.sdf < 0.95f*length(light.pos - P))
+  if(scene2.sdf < length(light.pos - P))
   {
     scene.shd = 0.1f;
   }
@@ -346,15 +340,11 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   {
     scene.shd = 1.0f;
   }
-
+  
   shadow = scene.shd;
-  //shadow = 1.0f;
+
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
-  if(i == 512 && j == 384)
-  {
-  printf("\n sdf = %f, inc = %f, shadow = %f\n", object2.sdf, length(incident2), shadow);
-  }
   /*
   refracted = refract(incident, N, 1.00f, 1.33f);
   d = raymarch(P, -refracted, ball, 3).w;                                                           // Computing scene distance...
