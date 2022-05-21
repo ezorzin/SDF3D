@@ -28,7 +28,7 @@
 #define KERNEL_1      "thekernel_1.cl"                                                              // OpenCL kernel source.
 #define UTILITIES     "utilities.cl"                                                                // OpenCL utilities source.
 
-#define N             50                                                                            // Number of object.
+#define N             72                                                                            // Number of object.
 
 // INCLUDES:
 #include "nu.hpp"                                                                                   // Neutrino's header file.
@@ -176,7 +176,7 @@ int main ()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
   K1->addsource (std::string (KERNEL_HOME) + std::string (UTILITIES));                              // Setting kernel source file...
   K1->addsource (std::string (KERNEL_HOME) + std::string (KERNEL_1));                               // Setting kernel source file...
-  K1->build (SX, SY, 0);                                                                            // Building kernel program...
+  K1->build (SX, SY, N);                                                                            // Building kernel program...
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// OPENGL SHADERS INITIALIZATION /////////////////////////////////

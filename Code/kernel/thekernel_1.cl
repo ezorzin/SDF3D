@@ -33,6 +33,31 @@
 #define ZERO4 (float4)(OOOO)
 #define I4x4 (float16)(IOOO, OIOO, OOIO, OOOI)
 
+#define W canvas[0].x                                                                               // Window width [px].
+#define H canvas[0].y                                                                               // Window height [px].
+#define AR canvas[0].z                                                                              // Window aspect ratio [].
+#define FOV canvas[0].w                                                                             // FOV [degrees].
+#define X 2.0f*(i/W) - 1.0f                                                                         // Canvas x-coordinate [-1.0f...+1.0f].
+#define Y 2.0f*(j/H) - 1.0f                                                                         // Canvas y-coordinate [-1.0f...+1.0f].
+
+#define V_0123 view_matrix[0].s0123
+#define V_4567 view_matrix[0].s4567
+#define V_89AB view_matrix[0].s89AB
+#define V_CDEF view_matrix[0].sCDEF
+
+#define CAMERA_I (float4)(0.0f, 0.2f, 2.0f, 1.0f)                                                   // Initial camera position.
+#define CAMERA_POS_X dot(V_0123, CAMERA_I)
+#define CAMERA_POS_Y dot(V_4567, CAMERA_I)
+#define CAMERA_POS_Z dot(V_89AB, CAMERA_I)
+#define CAMERA_POS (float3)(CAMERA_POS_X, CAMERA_POS_Y, CAMERA_POS_Z)                               // Arcball applied to camera position.
+
+#define LIGHT_POS light_position[0].xyz                                                             // Light position.
+#define LIGHT_K light_position[0].w                                                                 // Light sharpness [k]...
+#define LIGHT_COL light_color[0].xyz                                                                // Light color [r, g, b]...
+#define LIGHT_AMB light_color[0].w                                                                  // Light ambient intensity [ambient]...
+
+#define RAY_TMP float3_tmp                                                                          
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////// DATA STRUCTURES //////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -291,15 +316,11 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 { 
   uint            i = get_global_id(0);                                                             // Global index i [#].
   uint            j = get_global_id(1);                                                             // Global index j [#].
-  uint            k;                                                                                // Object index [#].
+  uint            k = get_global_id(2);                                                             // Global index j [#].
   int             n = object_number[0];                                                             // Number of object [#].
   float16         V;                                                                                // View matrix [4x4].
-  float           W = canvas[0].x;                                                                  // Window width [px].
-  float           H = canvas[0].y;                                                                  // Window height [px].
-  float           AR = canvas[0].z;                                                                 // Window aspect ratio [].
-  float           FOV = canvas[0].w;                                                                // FOV [degrees].
-  float           x = 2.0f*(i/W) - 1.0f;                                                            // Canvas x-coordinate [-1.0f...+1.0f].
-  float           y = 2.0f*(j/H) - 1.0f;                                                            // Canvas y-coordinate [-1.0f...+1.0f].
+  
+  
   
   struct Camera   camera;                                                                           // Camera.
   struct Light    light;                                                                            // Light.
@@ -326,21 +347,17 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float3          N;                                                                                // Scene normal direction.
   float           h;                                                                                // Normal precision (for antialiasing).
 
+  float3          float3_tmp;
+
   // INITIALIZING RAY MARCHING:
-  V = view_matrix[0];                                                                               // Getting view matrix...
+  ray = (float3)(X*AR, Y, -1.0f/tan(FOV*PI/360.0f));                                                // Computing ray intersection on canvas...
+  RAY_TMP.x = dot(V_0123, (float4)(ray, 1.0f));                                                     // Applying arcball to ray direction...
+  RAY_TMP.y = dot(V_4567, (float4)(ray, 1.0f));                                                     // Applying arcball to ray direction...
+  RAY_TMP.z = dot(V_89AB, (float4)(ray, 1.0f));                                                     // Applying arcball to ray direction...                                                          
+  ray = normalize(RAY_TMP);                                                                         // Normalizing ray direction...
 
-  camera.pos = (float3)(0.0f, 0.2f, 2.0f);                                                          // Setting initial camera position...
-  camera.pos = mul(V, (float4)(camera.pos, 1.0f)).xyz;                                              // Applying arcball to camera position...
-  camera.fov = FOV;                                                                                 // Setting camera FOV...
 
-  light.pos = light_position[0].xyz;                                                                // Setting light position...
-  light.k   = light_position[0].w;                                                                  // Setting light sharpness [k]...
-  light.col = light_color[0].xyz;                                                                   // Setting light color [r, g, b]...
-  light.amb = light_color[0].w;                                                                     // Setting light ambient intensity [ambient]...
-
-  ray = (float3)(x*AR, y, -1.0f/tan(camera.fov*PI/360.0f));                                         // Computing ray intersection on canvas...
-  ray = mul(V, (float4)(ray, 1.0f)).xyz;                                                            // Applying arcball to ray direction...
-  ray = normalize(ray);                                                                             // Normalizing ray direction...
+  // EZOR: to be continued...
 
   h = EPSILON;                                                                                       // EZOR: to be better defined...
 
@@ -349,25 +366,34 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   scene.dif = 0.0f;
   scene.ref = 0.0f;
 
+  object.type = 2;
+  object.T.s0123 = (float4)(1.0f, 0.0f, 0.0f, 0.0f);
+  object.T.s4567 = (float4)(0.0f, 1.0f, 0.0f, 0.0f);
+  object.T.s89AB = (float4)(0.0f, 0.0f, 1.0f, 0.0f);
+  object.T.sCDEF = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
+
+
   // COMPUTING RAY MARCHING:
-  for(k = 0; k < n; k++)
-  {
+  //for(k = 0; k < 500; k++)
+  //{
+    
     object.type = object_type[k];                                                                   // Getting object type...
     object.T = T[k];                                                                                // Getting object transformation matrix...
     object.par = M[k].s0123;                                                                        // Getting object parameters...
     object.amb = M[k].s4567;                                                                        // Getting object ambient color...
     object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
     object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
-    object = raymarchSDF(object, camera.pos, ray, h);                                               // Computing object raymarching...
+  
+    object = raymarchSDF(object, CAMERA_POS, ray, h);                                               // Computing object raymarching...
     scene = unionSDF(scene, object);                                                                // Assembling scene...
     //scene =  smoothunionSDF(scene, object, 10.1f);
-  }
+  //}
 
   // COMPUTING LIGHTNING:
   P = scene.P;
   N = scene.N;
 
-  view = normalize(camera.pos - P);                                                                 // Computing view direction...
+  view = normalize(CAMERA_POS - P);                                                                 // Computing view direction...
   incident = normalize(light.pos - P);                                                              // Computing incident light direction...
   reflected = reflect(-incident, N);                                                                // Computing reflected light direction...
   halfway = normalize(incident + view);                                                             // Computing halfway vector (Blinn-Phong)...
@@ -376,6 +402,7 @@ __kernel void thekernel(__global float4*    fragment_color,                     
 
   scene2.shd = 1.0f;
 
+  /*
   // COMPUTING SHADOW MARCHING:
   for(k = 0; k < n; k++)
   {
@@ -387,7 +414,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   }
 
   shadow = scene2.shd;
-  //shadow = 1.0f;
+  */
+  shadow = 1.0f;
 
   diffusion = clamp(dot(N, incident), 0.0f, 1.0f)*shadow;                                           // Computing light diffusion intensity... 
   
