@@ -1,7 +1,5 @@
 /// @file
 // CONSTANTS:
-#define PI 3.1415925359f                                                                            // PI.
-#define TWO_PI 6.2831852f                                                                           // 2*PI.
 #define MAX_STEPS 100                                                                               // Maximum ray marching steps.
 #define MAX_DISTANCE 100.0f                                                                         // Maximum marching distance.
 #define EPSILON 0.01f                                                                               // Minimum surface distance (ray marching epsilon).
@@ -40,10 +38,10 @@
 #define X 2.0f*(i/W) - 1.0f                                                                         // Canvas x-coordinate [-1.0f...+1.0f].
 #define Y 2.0f*(j/H) - 1.0f                                                                         // Canvas y-coordinate [-1.0f...+1.0f].
 
-#define V_0123 view_matrix[0].s0123
-#define V_4567 view_matrix[0].s4567
-#define V_89AB view_matrix[0].s89AB
-#define V_CDEF view_matrix[0].sCDEF
+#define V_0123 V[0].s0123
+#define V_4567 V[0].s4567
+#define V_89AB V[0].s89AB
+#define V_CDEF V[0].sCDEF
 
 #define CAMERA_I (float4)(0.0f, 0.2f, 2.0f, 1.0f)                                                   // Initial camera position.
 #define CAMERA_POS_X dot(V_0123, CAMERA_I)
@@ -56,7 +54,34 @@
 #define LIGHT_COL light_color[0].xyz                                                                // Light color [r, g, b]...
 #define LIGHT_AMB light_color[0].w                                                                  // Light ambient intensity [ambient]...
 
-#define RAY_TMP float3_tmp                                                                          
+#define PAR_0 M[k].s0
+#define PAR_1 M[k].s1
+#define PAR_2 M[k].s2
+#define PAR_3 M[k].s3
+#define AMB_R M[k].s4
+#define AMB_G M[k].s5
+#define AMB_B M[k].s6
+#define ALPHA M[k].s7
+#define DIF_R M[k].s8
+#define DIF_G M[k].s9
+#define DIF_B M[k].sA
+#define N_RATIO M[k].sB
+#define REF_R M[k].sC
+#define REF_G M[k].sD
+#define REF_B M[k].sE
+#define K M.sF
+
+#define AMB M[k].s4567
+#define DIF M[k].s89AB
+#define REF M[k].sCDEF
+
+#define T_0123 T[k].s0123
+#define T_4567 T[k].s4567
+#define T_89AB T[k].s89AB
+#define T_CDEF T[k].sCDEF
+
+#define RAY_TMP float3_tmp       
+#define P_TMP float3_tmp                                                                   
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////// DATA STRUCTURES //////////////////////////////////////////
@@ -304,11 +329,10 @@ float3 refract(float3 I, float3 N, float n1, float n2)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 __kernel void thekernel(__global float4*    fragment_color,                                         // Fragment color.
                         __global float4*    center,
-                        __global float16*   view_matrix,                                            // View matrix [4x4].
+                        __global float16*   V,                                                      // View matrix [4x4].
                         __global float4*    canvas,                                                 // Canvas [W, H, AR, FOV].
                         __global float4*    light_position,                                         // Light position [x, y, z, k].
                         __global float4*    light_color,                                            // Light color [r, g, b, ambient].
-                        __global int*       object_number,                                          // Object number.
                         __global int*       object_type,                                            // Object type.
                         __global float16*   T,                                                      // Object transformation matrix [4x4].                     
                         __global float16*   M                                                       // Object material matrix [4x4].
@@ -317,11 +341,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   uint            i = get_global_id(0);                                                             // Global index i [#].
   uint            j = get_global_id(1);                                                             // Global index j [#].
   uint            k = get_global_id(2);                                                             // Global index j [#].
-  int             n = object_number[0];                                                             // Number of object [#].
-  float16         V;                                                                                // View matrix [4x4].
-  
-  
-  
+  uint            n;
+
   struct Camera   camera;                                                                           // Camera.
   struct Light    light;                                                                            // Light.
   struct Object   object;                                                                            // Scene.
@@ -329,6 +350,8 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   struct Object   scene;                                                                            // Scene.
   struct Object   scene2;                                                                            // Scene.
   struct Fragment fragment;                                                                         // Fragment.
+
+  float3          float3_tmp;
 
   float3          ray;                                                                              // Marching ray.
   float           distance;                                                                         // Marching distance.
@@ -343,51 +366,86 @@ __kernel void thekernel(__global float4*    fragment_color,                     
   float           reflection;                                                                       // Reflection light intensity.
   float           shadow;                                                                           // Shadow intensity.
   float           shadow_old;
-  float3          P;                                                                                // Scene position.
+  float3          p;                                                                                // Scene position.
   float3          N;                                                                                // Scene normal direction.
-  float           h;                                                                                // Normal precision (for antialiasing).
 
-  float3          float3_tmp;
+  
 
   // INITIALIZING RAY MARCHING:
-  ray = (float3)(X*AR, Y, -1.0f/tan(FOV*PI/360.0f));                                                // Computing ray intersection on canvas...
+  ray = (float3)(X*AR, Y, -1.0f/tan(FOV*M_PI_F/360.0f));                                            // Computing ray intersection on canvas...
   RAY_TMP.x = dot(V_0123, (float4)(ray, 1.0f));                                                     // Applying arcball to ray direction...
   RAY_TMP.y = dot(V_4567, (float4)(ray, 1.0f));                                                     // Applying arcball to ray direction...
   RAY_TMP.z = dot(V_89AB, (float4)(ray, 1.0f));                                                     // Applying arcball to ray direction...                                                          
   ray = normalize(RAY_TMP);                                                                         // Normalizing ray direction...
-
-
-  // EZOR: to be continued...
-
-  h = EPSILON;                                                                                       // EZOR: to be better defined...
 
   scene.sdf = INF;
   scene.amb = 0.0f;
   scene.dif = 0.0f;
   scene.ref = 0.0f;
 
-  object.type = 2;
-  object.T.s0123 = (float4)(1.0f, 0.0f, 0.0f, 0.0f);
-  object.T.s4567 = (float4)(0.0f, 1.0f, 0.0f, 0.0f);
-  object.T.s89AB = (float4)(0.0f, 0.0f, 1.0f, 0.0f);
-  object.T.sCDEF = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
-
-
   // COMPUTING RAY MARCHING:
-  //for(k = 0; k < 500; k++)
-  //{
+  distance = 0.0f;                                                                                  // Marching distance.
+
+  for (n = 0; n < MAX_STEPS; n++)
+  {
+    p = CAMERA_POS + distance*ray;                                                                  // Computing marching ray...
+    P_TMP.x = dot(T_0123, (float4)(p, 1.0f));                                                       // Applying transformation matrix...
+    P_TMP.y = dot(T_4567, (float4)(p, 1.0f));                                                       // Applying transformation matrix...
+    P_TMP.z = dot(T_89AB, (float4)(p, 1.0f));                                                       // Applying transformation matrix...                                                          
+    p = P_TMP;                                                                                      // Applying transformation matrix... 
     
-    object.type = object_type[k];                                                                   // Getting object type...
-    object.T = T[k];                                                                                // Getting object transformation matrix...
-    object.par = M[k].s0123;                                                                        // Getting object parameters...
-    object.amb = M[k].s4567;                                                                        // Getting object ambient color...
-    object.dif = M[k].s89AB;                                                                        // Getting object diffusion color...
-    object.ref = M[k].sCDEF;                                                                        // Getting object reflection color...
+    switch (object_type[k])
+    {
+      case SCENE:
+        object_sdf[k] = INF;
+
+      case PLANE:
+        object_sdf[k] = dot(P, (float3)(0.0f, 1.0f, 0.0f));                                         // Computing sdf...
+        object_sdf[k] = P.y;
+        break;
+
+      case SPHERE:
+        // parameter.x = radius.
+        object_sdf[k] = length(P) - PAR_0;                                                          // Computing sdf...
+        break;
+    }
+ 
+    distance += object_sdf[k];                                                                      // Updating marching distance...
+    
+    if(distance > MAX_DISTANCE || object_sdf[k] < EPSILON) break;                                   // Checking numeric precision constraints...
+  }
+
+  if(distance > MAX_DISTANCE)
+  {
+    AMB = ZERO4;
+    DIF = ZERO4;
+    REF = ZERO4;
+  }
+
+  object_sdf[k] = distance;                                                                            // Computing object distance...
+  P = CAMERA_POS + distance*ray;                                                                  // Computing marching ray...
+  object_P[k] = P;                                                                                     // Computing object ray position...                                            
+  object_N[k] = normalSDF(object, P, EPSILON);                                                               // Computing object normal...
+
+
+  float3 normalSDF(struct Object object, float3 point, float h)
+{
+  float3 N;
+  int i;
+
+  object_N[k] = ZERO3;
   
-    object = raymarchSDF(object, CAMERA_POS, ray, h);                                               // Computing object raymarching...
-    scene = unionSDF(scene, object);                                                                // Assembling scene...
-    //scene =  smoothunionSDF(scene, object, 10.1f);
-  //}
+  object_N[k] += objectSDF(object, point + TET_A*h)*TET_A;
+  object_N[k] += objectSDF(object, point + TET_B*h)*TET_B;
+  object_N[k] += objectSDF(object, point + TET_C*h)*TET_C;
+  object_N[k] += objectSDF(object, point + TET_D*h)*TET_D;
+
+  return normalize(N);
+}
+
+
+  scene = unionSDF(scene, object);                                                                // Assembling scene... EZOR: to be done in a second kernel.
+  
 
   // COMPUTING LIGHTNING:
   P = scene.P;

@@ -135,10 +135,10 @@ int main ()
                     );
 
   M->data.push_back (
-                     {0.2f, 0.0f, 0.0f, 0.0f,
-                      0.4f, 0.4f, 0.4f, 1.0f,
-                      0.4f, 0.4f, 0.4f, 1.0f,
-                      0.5f, 0.5f, 0.5f, 12.0f}
+                     {0.2f, 0.0f, 0.0f, 0.0f,                                                       // Radius, a, b, c
+                      0.4f, 0.4f, 0.4f, 1.0f,                                                       // amb_col, transp
+                      0.4f, 0.4f, 0.4f, 1.0f,                                                       // dif_col, n
+                      0.5f, 0.5f, 0.5f, 12.0f}                                                      // ref_col, k
                     );
 
   for(i = 1; i < N; i++)
