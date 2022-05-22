@@ -28,7 +28,7 @@
 #define KERNEL_1      "thekernel_1.cl"                                                              // OpenCL kernel source.
 #define UTILITIES     "utilities.cl"                                                                // OpenCL utilities source.
 
-#define N             72                                                                            // Number of object.
+#define N             10                                                                            // Number of object.
 
 // INCLUDES:
 #include "nu.hpp"                                                                                   // Neutrino's header file.
@@ -36,35 +36,37 @@
 int main ()
 {
   // MOUSE PARAMETERS:
-  float               ms_orbit_rate  = 1.0f;                                                        // Orbit rotation rate [rev/s].
-  float               ms_pan_rate    = 5.0f;                                                        // Pan translation rate [m/s].
-  float               ms_decaytime   = 1.25f;                                                       // Pan LP filter decay time [s].
+  float               ms_orbit_rate   = 1.0f;                                                       // Orbit rotation rate [rev/s].
+  float               ms_pan_rate     = 5.0f;                                                       // Pan translation rate [m/s].
+  float               ms_decaytime    = 1.25f;                                                      // Pan LP filter decay time [s].
 
   // GAMEPAD PARAMETERS:
-  float               gmp_orbit_rate = 1.0f;                                                        // Orbit angular rate coefficient [rev/s].
-  float               gmp_pan_rate   = 1.0f;                                                        // Pan translation rate [m/s].
-  float               gmp_decaytime  = 1.25f;                                                       // Low pass filter decay time [s].
-  float               gmp_deadzone   = 0.30f;                                                       // Gamepad joystick deadzone [0...1].
+  float               gmp_orbit_rate  = 1.0f;                                                       // Orbit angular rate coefficient [rev/s].
+  float               gmp_pan_rate    = 1.0f;                                                       // Pan translation rate [m/s].
+  float               gmp_decaytime   = 1.25f;                                                      // Low pass filter decay time [s].
+  float               gmp_deadzone    = 0.30f;                                                      // Gamepad joystick deadzone [0...1].
 
   // OPENGL:
-  nu::opengl*         gl             = new nu::opengl (NM, SX, SY, OX, OY, PX, PY, PZ);             // OpenGL context.
-  nu::shader*         sh             = new nu::shader ();                                           // OpenGL shader program.
-  nu::projection_mode pmode          = nu::MONOCULAR;                                               // OpenGL projection mode.
-  nu::view_mode       vmode          = nu::INVERSE;                                                 // OpenGL VIEW mode.
+  nu::opengl*         gl              = new nu::opengl (NM, SX, SY, OX, OY, PX, PY, PZ);            // OpenGL context.
+  nu::shader*         sh              = new nu::shader ();                                          // OpenGL shader program.
+  nu::projection_mode pmode           = nu::MONOCULAR;                                              // OpenGL projection mode.
+  nu::view_mode       vmode           = nu::INVERSE;                                                // OpenGL VIEW mode.
 
   // OPENCL:
-  nu::opencl*         cl             = new nu::opencl (nu::GPU);                                    // OpenCL context.
-  nu::kernel*         K1             = new nu::kernel ();                                           // OpenCL kernel array.
-  nu::float4*         fragment_color = new nu::float4 (0);                                          // Color [r, g, b, a].
-  nu::float4*         center         = new nu::float4 (1);                                          // Center point.
-  nu::float16*        view_matrix    = new nu::float16 (2);                                         // View matrix [4x4].
-  nu::float4*         canvas         = new nu::float4 (3);                                          // Canvas parameters [W, H, AR, FOV].
-  nu::float4*         light_position = new nu::float4 (4);                                          // Light position [x, y, z, k].
-  nu::float4*         light_color    = new nu::float4 (5);                                          // Light color [r, g, b, ambient].
-  nu::int1*           object_number  = new nu::int1 (6);                                            // Number of objects.
-  nu::int1*           object_type    = new nu::int1 (7);                                            // Object type.
-  nu::float16*        T              = new nu::float16 (8);                                         // Transformation matrix.
-  nu::float16*        M              = new nu::float16 (9);                                         // Material matrix.
+  nu::opencl*         cl              = new nu::opencl (nu::GPU);                                   // OpenCL context.
+  nu::kernel*         K1              = new nu::kernel ();                                          // OpenCL kernel array.
+  nu::float4*         fragment_color  = new nu::float4 (0);                                         // Color [r, g, b, a].
+  nu::float4*         center          = new nu::float4 (1);                                         // Center point.
+  nu::float16*        V               = new nu::float16 (2);                                        // View matrix [4x4].
+  nu::float4*         canvas          = new nu::float4 (3);                                         // Canvas parameters [W, H, AR, FOV].
+  nu::float4*         light_position  = new nu::float4 (4);                                         // Light position [x, y, z, k].
+  nu::float4*         light_color     = new nu::float4 (5);                                         // Light color [r, g, b, ambient].
+  nu::int1*           object_type     = new nu::int1 (6);                                           // Object type.
+  nu::float3*         object_position = new nu::float3 (7);
+  nu::float3*         object_normal   = new nu::float3 (8);
+  nu::float1*         object_sdf      = new nu::float1 (9);
+  nu::float16*        T               = new nu::float16 (10);                                       // Transformation matrix.
+  nu::float16*        M               = new nu::float16 (11);                                       // Material matrix.
 
   float               A_init[16];
   float               A[16];
@@ -85,17 +87,16 @@ int main ()
 
   center->data.push_back ({0.0f, 0.0f, 0.0f, 1.0f});
 
-  view_matrix->data.push_back (
-                               {1.0f, 0.0f, 0.0f, 0.0f,                                             // Initializing view matrix...
-                                0.0f, 1.0f, 0.0f, 0.0f,                                             // Initializing view matrix...
-                                0.0f, 0.0f, 1.0f, 0.0f,                                             // Initializing view matrix...
-                                0.0f, 0.0f, 0.0f, 1.0f}                                             // Initializing view matrix...
-                              );
+  V->data.push_back (
+                     {1.0f, 0.0f, 0.0f, 0.0f,                                                       // Initializing view matrix...
+                      0.0f, 1.0f, 0.0f, 0.0f,                                                       // Initializing view matrix...
+                      0.0f, 0.0f, 1.0f, 0.0f,                                                       // Initializing view matrix...
+                      0.0f, 0.0f, 0.0f, 1.0f}                                                       // Initializing view matrix...
+                    );
 
   canvas->data.push_back ({800.0f, 800.0f, 800.0f/600.0f, 60.0f});                                  // Initializing canvas parameters [W, H, AR, FOV]...
   light_position->data.push_back ({5.0f, 5.0f, 0.0f, 10.0f});                                       // Initializing light position [x, y, z, k]...
   light_color->data.push_back ({1.0f, 1.0f, 1.0f, 0.1f});                                           // Initializing light color [r, g, b, ambient]...
-  object_number->data.push_back (N);
 
   /*
      object_type->data.push_back (0);
@@ -148,6 +149,10 @@ int main ()
     z[i]       = (float) rand () / (RAND_MAX);
 
     object_type->data.push_back (2);
+    object_position->data.push_back ({0.0f, 0.0f, 0.0f});
+    object_normal->data.push_back ({0.0f, 0.0f, 0.0f});
+    object_sdf->data.push_back (0.0f);
+
     A_init[0]  = 1.0f; A_init[1] = 0.0f; A_init[2] = 0.0f; A_init[3] = 2.0f*x[i] - 1.0f;
     A_init[4]  = 0.0f; A_init[5] = 1.0f; A_init[6] = 0.0f; A_init[7] = y[i] + 0.2f;
     A_init[8]  = 0.0f; A_init[9] = 0.0f; A_init[10] = 1.0f; A_init[11] = 2.0f*z[i] - 1.0f;
@@ -199,11 +204,11 @@ int main ()
 
     cl->get_tic ();                                                                                 // Getting "tic" [us]...
 
-    view_matrix->data[0] = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8],  gl->V_mat[12],
-                            gl->V_mat[1], gl->V_mat[5], gl->V_mat[9],  gl->V_mat[13],
-                            gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14],
-                            gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
-    canvas->data[0]      = {float(SX), float(SY), gl->aspect_ratio, 60.0f};
+    V->data[0]      = {gl->V_mat[0], gl->V_mat[4], gl->V_mat[8],  gl->V_mat[12],
+                       gl->V_mat[1], gl->V_mat[5], gl->V_mat[9],  gl->V_mat[13],
+                       gl->V_mat[2], gl->V_mat[6], gl->V_mat[10], gl->V_mat[14],
+                       gl->V_mat[3], gl->V_mat[7], gl->V_mat[11], gl->V_mat[15]};
+    canvas->data[0] = {float(SX), float(SY), gl->aspect_ratio, 60.0f};
 
 
     for(i = 1; i < N; i++)
@@ -226,7 +231,7 @@ int main ()
 
     cl->write (2);
     cl->write (3);
-    cl->write (8);
+    cl->write (10);
 
     cl->acquire ();                                                                                 // Acquiring OpenCL kernel...
     cl->execute (K1, nu::WAIT);                                                                     // Executing OpenCL kernel...
@@ -251,12 +256,14 @@ int main ()
   delete K1;
   delete fragment_color;
   delete center;
-  delete view_matrix;
+  delete V;
   delete canvas;
   delete light_position;
   delete light_color;                                                                               // Deleting color data...
-  delete object_number;
   delete object_type;
+  delete object_position;
+  delete object_normal;
+  delete object_sdf;
   delete T;
   delete M;
 
